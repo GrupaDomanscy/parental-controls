@@ -2,7 +2,7 @@ module domanscy.group/parental-controls
 
 go 1.22.5
 
-replace domanscy.group/gui => ../gui
+replace domanscy.group/gui => ./gui
 
 require domanscy.group/gui v0.0.0-00010101000000-000000000000
 
