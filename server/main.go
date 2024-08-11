@@ -10,14 +10,14 @@ import (
 )
 
 type ServerConfig struct {
-	ServerAddress string
-	ServerPort    uint16
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	ServerPort    uint16 `env:"SERVER_PORT"`
 
-	EmailFromAddress string
-	SmtpAddress      string
-	SmtpPort         uint16
+	EmailFromAddress string `env:"EMAIL_FROM_ADDRESS"`
+	SmtpAddress      string `env:"SMTP_ADDRESS"`
+	SmtpPort         uint16 `env:"SMTP_PORT"`
 
-	DatabaseUrl string
+	DatabaseUrl string `env:"DATABASE_URL"`
 }
 
 func NewServer(cfg ServerConfig, db *sql.DB) http.Handler {
@@ -30,14 +30,7 @@ func NewServer(cfg ServerConfig, db *sql.DB) http.Handler {
 
 func main() {
 	cfg := ServerConfig{}
-	env.ReadToCfg(&cfg, map[string]string{
-		"ServerAddress":    "SERVER_ADDRESS",
-		"ServerPort":       "SERVER_PORT",
-		"SmtpAddress":      "SMTP_ADDRESS",
-		"SmtpPort":         "SMTP_PORT",
-		"EmailFromAddress": "EMAIL_FROM_ADDRESS",
-		"DatabaseUrl":      "DATABASE_URL",
-	})
+	env.ReadToCfg(&cfg)
 
 	db, err := sql.Open("sqlite3", cfg.DatabaseUrl)
 	if err != nil {
