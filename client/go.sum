@@ -1,0 +1,4 @@
+github.com/chasefleming/elem-go v0.27.0 h1:rJhkr7CZuUhx0dN7QAgdKqL+F9Eu5PRTXNxm06h4/9Y=
+github.com/chasefleming/elem-go v0.27.0/go.mod h1:hz73qILBIKnTgOujnSMtEj20/epI+f6vg71RUilJAA4=
+github.com/go-chi/chi v1.5.5 h1:vOB/HbEMt9QqBqErz07QehcOKHaWFtuj87tTDVz2qXE=
+github.com/go-chi/chi v1.5.5/go.mod h1:C9JqLr3tIYjDOZpzn+BCuxY8z8vmca43EeMgyZt7irw=
