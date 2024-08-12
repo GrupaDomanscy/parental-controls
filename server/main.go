@@ -23,7 +23,7 @@ type ServerConfig struct {
 func NewServer(cfg ServerConfig, db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
-	r.Post("/auth/login", HttpAuthLogin(&cfg, db))
+	r.Post("/login", HttpAuthLogin(&cfg, db))
 
 	return r
 }
@@ -36,6 +36,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(db)
 
 	handler := NewServer(cfg, db)
 
