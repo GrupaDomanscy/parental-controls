@@ -54,10 +54,13 @@ func parseEmailAddressAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Req
 }
 
 func parseUrlAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Request, value string) error {
-	_, err := url.Parse(value)
+	parsed, err := url.Parse(value)
 	if err != nil {
 		respondWith400(w, r, ErrInvalidCallbackUrl.Error())
 		return err
+	} else if parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		respondWith400(w, r, ErrInvalidCallbackUrl.Error())
+		return ErrInvalidCallbackUrl
 	}
 
 	return nil

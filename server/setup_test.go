@@ -9,7 +9,13 @@ import (
 	"path/filepath"
 )
 
-func must[T any](something T, err error) T {
+func must(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func mustVal[T any](something T, err error) T {
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -18,7 +24,7 @@ func must[T any](something T, err error) T {
 }
 
 func getCwd() string {
-	return must(os.Getwd())
+	return mustVal(os.Getwd())
 }
 
 var mailpitExeFilePath = filepath.Join(getCwd(), "tmp", "mailpit.exe")

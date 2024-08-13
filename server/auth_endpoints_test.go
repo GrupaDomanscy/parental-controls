@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"mailpitsuite"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,6 +30,17 @@ func openDatabase(t *testing.T) *sql.DB {
 }
 
 func TestHttpAuthLoginReturns400IfJsonPayloadIsInvalid(t *testing.T) {
+	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mailpit.Close()
+
+	err = mailpit.DeleteAllMessages()
+	if err != nil {
+		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+	}
+
 	db := openDatabase(t)
 
 	bodyReader := strings.NewReader("notavalidjson")
@@ -50,6 +62,15 @@ func TestHttpAuthLoginReturns400IfJsonPayloadIsInvalid(t *testing.T) {
 	if recorder.Body.String() != ErrInvalidJsonPayload.Error() {
 		t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidJsonPayload.Error())
 	}
+
+	messages, err := mailpit.GetAllMessages()
+	if err != nil {
+		t.Fatalf("failed to get all mailpit messages: %s", err.Error())
+	}
+
+	if len(messages) != 0 {
+		t.Errorf("Length of messages should be equal to 0, received %d", len(messages))
+	}
 }
 
 func convertStructToJson(t *testing.T, obj interface{}) []byte {
@@ -63,6 +84,17 @@ func convertStructToJson(t *testing.T, obj interface{}) []byte {
 }
 
 func TestHttpAuthLoginReturns400IfEmailIsInvalid(t *testing.T) {
+	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mailpit.Close()
+
+	err = mailpit.DeleteAllMessages()
+	if err != nil {
+		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+	}
+
 	db := openDatabase(t)
 
 	bodyReader := bytes.NewReader(convertStructToJson(t, struct {
@@ -89,16 +121,36 @@ func TestHttpAuthLoginReturns400IfEmailIsInvalid(t *testing.T) {
 	if recorder.Body.String() != ErrInvalidEmail.Error() {
 		t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidEmail.Error())
 	}
+
+	messages, err := mailpit.GetAllMessages()
+	if err != nil {
+		t.Fatalf("failed to get all mailpit messages: %s", err.Error())
+	}
+
+	if len(messages) != 0 {
+		t.Errorf("Length of messages should be equal to 0, received %d", len(messages))
+	}
 }
 
 func TestHttpAuthLoginReturns400IfCallbackIsInvalid(t *testing.T) {
+	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mailpit.Close()
+
+	err = mailpit.DeleteAllMessages()
+	if err != nil {
+		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+	}
+
 	db := openDatabase(t)
 	bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 		Email    string `json:"email"`
 		Callback string `json:"callback"`
 	}{
 		Email:    "hello@world.local",
-		Callback: "someinvalidurl'[]",
+		Callback: "p;789y124q6tyol789uioy7yui828u90ipriogp[r",
 	}))
 
 	recorder := httptest.NewRecorder()
@@ -117,5 +169,14 @@ func TestHttpAuthLoginReturns400IfCallbackIsInvalid(t *testing.T) {
 
 	if recorder.Body.String() != ErrInvalidCallbackUrl.Error() {
 		t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidCallbackUrl.Error())
+	}
+
+	messages, err := mailpit.GetAllMessages()
+	if err != nil {
+		t.Fatalf("failed to get all mailpit messages: %s", err.Error())
+	}
+
+	if len(messages) != 0 {
+		t.Errorf("Length of messages should be equal to 0, received %d", len(messages))
 	}
 }
