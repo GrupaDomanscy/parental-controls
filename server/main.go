@@ -36,12 +36,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(db)
+
+	defer db.Close()
 
 	handler := NewServer(cfg, db)
 
