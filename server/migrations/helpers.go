@@ -87,6 +87,14 @@ func Migrate(db *sql.DB, migrations map[string]string) error {
 	}
 
 	for migrationName, sqlQuery := range migrations {
+		migrationConfirmed, err := isMigrationConfirmed(db, migrationName)
+		if err != nil {
+			return fmt.Errorf("error occured while trying to obtain information about confirmation of migration execution: %w", err)
+		}
+
+		if migrationConfirmed {
+			continue
+		}
 
 		_, err = db.Exec(sqlQuery)
 		if err != nil {
