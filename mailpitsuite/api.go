@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,7 +21,11 @@ type Api struct {
 	command  *exec.Cmd
 }
 
+var mailpitMutex sync.Mutex
+
 func NewApi(mailpitExecutablePath string) (*Api, error) {
+	mailpitMutex.Lock()
+
 	tenantId := fmt.Sprintf("tenant_%d", time.Now().UnixMilli())
 
 	api := &Api{
@@ -34,6 +39,7 @@ func NewApi(mailpitExecutablePath string) (*Api, error) {
 
 	stdout, err := api.command.StdoutPipe()
 	if err != nil {
+		mailpitMutex.Unlock()
 		return nil, fmt.Errorf("failed to obtain stdout pipe: %w", err)
 	}
 
@@ -41,6 +47,7 @@ func NewApi(mailpitExecutablePath string) (*Api, error) {
 
 	err = api.command.Start()
 	if err != nil {
+		mailpitMutex.Unlock()
 		return nil, fmt.Errorf("failed to start mailpit executable: %w", err)
 	}
 
@@ -51,6 +58,7 @@ func NewApi(mailpitExecutablePath string) (*Api, error) {
 		tmp, err := stdoutReader.ReadString('\n')
 
 		if err != nil && err != io.EOF {
+			mailpitMutex.Unlock()
 			killErr := api.command.Process.Kill()
 			if killErr != nil {
 				return nil, fmt.Errorf("failed to kill the process (%w) after failing to read stdout (%w)", killErr, err)
@@ -62,10 +70,21 @@ func NewApi(mailpitExecutablePath string) (*Api, error) {
 		}
 	}
 
+	for {
+		_, err = http.Get(fmt.Sprintf("%s/api/v1/info", api.baseUrl))
+		if err == nil {
+			time.Sleep(500)
+			break
+		}
+
+		time.Sleep(500)
+	}
+
 	return api, nil
 }
 
 func (api *Api) Close() error {
+	mailpitMutex.Unlock()
 	err := api.command.Process.Kill()
 	if err != nil {
 		return fmt.Errorf("failed to kill mailpit process: %w", err)

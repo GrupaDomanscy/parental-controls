@@ -30,6 +30,7 @@ func openDatabase(t *testing.T) *sql.DB {
 }
 
 func TestHttpAuthLoginReturns400IfJsonPayloadIsInvalid(t *testing.T) {
+	t.Parallel()
 	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
 	if err != nil {
 		t.Fatal(err)
@@ -84,6 +85,7 @@ func convertStructToJson(t *testing.T, obj interface{}) []byte {
 }
 
 func TestHttpAuthLoginReturns400IfEmailIsInvalid(t *testing.T) {
+	t.Parallel()
 	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +135,7 @@ func TestHttpAuthLoginReturns400IfEmailIsInvalid(t *testing.T) {
 }
 
 func TestHttpAuthLoginReturns400IfCallbackIsInvalid(t *testing.T) {
+	t.Parallel()
 	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
 	if err != nil {
 		t.Fatal(err)
