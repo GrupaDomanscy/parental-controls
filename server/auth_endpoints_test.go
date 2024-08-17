@@ -29,41 +29,7 @@ func openDatabase(t *testing.T) *sql.DB {
 	return db
 }
 
-func TestHttpAuthLoginReturns400IfJsonPayloadIsInvalid(t *testing.T) {
-	t.Parallel()
-	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mailpit.Close()
-
-	err = mailpit.DeleteAllMessages()
-	if err != nil {
-		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-	}
-
-	db := openDatabase(t)
-
-	bodyReader := strings.NewReader("notavalidjson")
-
-	recorder := httptest.NewRecorder()
-	request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	request.RemoteAddr = "127.0.0.1:51789"
-
-	HttpAuthLogin(testingCfg, db)(recorder, request)
-
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
-	}
-
-	if recorder.Body.String() != ErrInvalidJsonPayload.Error() {
-		t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidJsonPayload.Error())
-	}
-
+func assertMailpitInboxIsEmpty(t *testing.T, mailpit *mailpitsuite.Api) {
 	messages, err := mailpit.GetAllMessages()
 	if err != nil {
 		t.Fatalf("failed to get all mailpit messages: %s", err.Error())
@@ -84,102 +50,171 @@ func convertStructToJson(t *testing.T, obj interface{}) []byte {
 	return result
 }
 
-func TestHttpAuthLoginReturns400IfEmailIsInvalid(t *testing.T) {
-	t.Parallel()
-	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mailpit.Close()
+func TestHttpAuthLogin(t *testing.T) {
+	t.Run("returns 400 if json payload is invalid", func(t *testing.T) {
+		t.Parallel()
+		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer mailpit.Close()
 
-	err = mailpit.DeleteAllMessages()
-	if err != nil {
-		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-	}
+		err = mailpit.DeleteAllMessages()
+		if err != nil {
+			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+		}
 
-	db := openDatabase(t)
+		db := openDatabase(t)
 
-	bodyReader := bytes.NewReader(convertStructToJson(t, struct {
-		Email    string `json:"email"`
-		Callback string `json:"callback"`
-	}{
-		Email:    "invalid+.,nbav']@email.local",
-		Callback: "http://localhost:8080",
-	}))
-	recorder := httptest.NewRecorder()
+		bodyReader := strings.NewReader("notavalidjson")
 
-	request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
-	if err != nil {
-		t.Fatal(err)
-	}
+		recorder := httptest.NewRecorder()
+		request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	request.RemoteAddr = "127.0.0.1:51789"
+		request.RemoteAddr = "127.0.0.1:51789"
 
-	HttpAuthLogin(testingCfg, db)(recorder, request)
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
-	}
+		HttpAuthLogin(testingCfg, db)(recorder, request)
 
-	if recorder.Body.String() != ErrInvalidEmail.Error() {
-		t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidEmail.Error())
-	}
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
 
-	messages, err := mailpit.GetAllMessages()
-	if err != nil {
-		t.Fatalf("failed to get all mailpit messages: %s", err.Error())
-	}
+		if recorder.Body.String() != ErrInvalidJsonPayload.Error() {
+			t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidJsonPayload.Error())
+		}
 
-	if len(messages) != 0 {
-		t.Errorf("Length of messages should be equal to 0, received %d", len(messages))
-	}
-}
+		assertMailpitInboxIsEmpty(t, mailpit)
+	})
 
-func TestHttpAuthLoginReturns400IfCallbackIsInvalid(t *testing.T) {
-	t.Parallel()
-	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mailpit.Close()
+	t.Run("returns 400 if email is invalid", func(t *testing.T) {
+		t.Parallel()
+		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer mailpit.Close()
 
-	err = mailpit.DeleteAllMessages()
-	if err != nil {
-		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-	}
+		err = mailpit.DeleteAllMessages()
+		if err != nil {
+			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+		}
 
-	db := openDatabase(t)
-	bodyReader := bytes.NewReader(convertStructToJson(t, struct {
-		Email    string `json:"email"`
-		Callback string `json:"callback"`
-	}{
-		Email:    "hello@world.local",
-		Callback: "p;789y124q6tyol789uioy7yui828u90ipriogp[r",
-	}))
+		db := openDatabase(t)
 
-	recorder := httptest.NewRecorder()
+		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
+			Email    string `json:"email"`
+			Callback string `json:"callback"`
+		}{
+			Email:    "invalid+.,nbav']@email.local",
+			Callback: "http://localhost:8080",
+		}))
+		recorder := httptest.NewRecorder()
 
-	request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
-	if err != nil {
-		t.Fatal(err)
-	}
+		request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	request.RemoteAddr = "127.0.0.1:51789"
+		request.RemoteAddr = "127.0.0.1:51789"
 
-	HttpAuthLogin(testingCfg, db)(recorder, request)
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
-	}
+		HttpAuthLogin(testingCfg, db)(recorder, request)
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
 
-	if recorder.Body.String() != ErrInvalidCallbackUrl.Error() {
-		t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidCallbackUrl.Error())
-	}
+		if recorder.Body.String() != ErrInvalidEmail.Error() {
+			t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidEmail.Error())
+		}
 
-	messages, err := mailpit.GetAllMessages()
-	if err != nil {
-		t.Fatalf("failed to get all mailpit messages: %s", err.Error())
-	}
+		assertMailpitInboxIsEmpty(t, mailpit)
+	})
 
-	if len(messages) != 0 {
-		t.Errorf("Length of messages should be equal to 0, received %d", len(messages))
-	}
+	t.Run("returns 400 if callback is invalid", func(t *testing.T) {
+		t.Parallel()
+		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer mailpit.Close()
+
+		err = mailpit.DeleteAllMessages()
+		if err != nil {
+			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+		}
+
+		db := openDatabase(t)
+		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
+			Email    string `json:"email"`
+			Callback string `json:"callback"`
+		}{
+			Email:    "hello@world.local",
+			Callback: "p;789y124q6tyol789uioy7yui828u90ipriogp[r",
+		}))
+
+		recorder := httptest.NewRecorder()
+
+		request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request.RemoteAddr = "127.0.0.1:51789"
+
+		HttpAuthLogin(testingCfg, db)(recorder, request)
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+
+		if recorder.Body.String() != ErrInvalidCallbackUrl.Error() {
+			t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidCallbackUrl.Error())
+		}
+
+		assertMailpitInboxIsEmpty(t, mailpit)
+	})
+
+	t.Run("returns ErrUserWithGivenEmailDoesNotExist when user with given email does not exist", func(t *testing.T) {
+		t.Parallel()
+		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer mailpit.Close()
+
+		err = mailpit.DeleteAllMessages()
+		if err != nil {
+			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+		}
+
+		db := openDatabase(t)
+		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
+			Email    string `json:"email"`
+			Callback string `json:"callback"`
+		}{
+			Email:    "hello@world.local",
+			Callback: "p;789y124q6tyol789uioy7yui828u90ipriogp[r",
+		}))
+
+		recorder := httptest.NewRecorder()
+
+		request, err := http.NewRequest("GET", "http://localhost:8080/login", bodyReader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request.RemoteAddr = "127.0.0.1:51789"
+
+		HttpAuthLogin(testingCfg, db)(recorder, request)
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+
+		if recorder.Body.String() != ErrInvalidCallbackUrl.Error() {
+			t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidCallbackUrl.Error())
+		}
+
+		assertMailpitInboxIsEmpty(t, mailpit)
+	})
 }
