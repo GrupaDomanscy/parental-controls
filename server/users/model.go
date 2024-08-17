@@ -2,6 +2,7 @@ package users
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -20,7 +21,9 @@ func FindOneById(db *sql.DB, id int) (*Model, error) {
 	user := &Model{}
 
 	err := row.Scan(&user.Id, &user.Email, &user.CreatedAt)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
 		return nil, fmt.Errorf("error occured while trying to scan the row for values: %w", err)
 	}
 
@@ -33,8 +36,9 @@ func FindOneByEmail(db *sql.DB, email string) (*Model, error) {
 	user := &Model{}
 
 	err := row.Scan(&user.Id, &user.Email, &user.CreatedAt)
-
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
 		return nil, fmt.Errorf("error occured while trying to scan the row for values: %w", err)
 	}
 
@@ -49,7 +53,7 @@ func GetAllByEmailSearch(db *sql.DB, emailPart string) ([]Model, error) {
 
 	rows, err := db.Query("SELECT * FROM users WHERE email LIKE $1", queryParam)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute query 'SELECT * FROM users ...': %w", queryParam)
+		return nil, fmt.Errorf("failed to execute query 'SELECT * FROM users ...': %w", err)
 	}
 
 	defer func(rows *sql.Rows) {
