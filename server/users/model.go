@@ -106,3 +106,29 @@ func Create(db *sql.DB, email string) (int, error) {
 
 	return int(id), nil
 }
+
+var ErrUserWithThisIdDoesNotExist = errors.New("user with this id does not exist")
+
+func Update(db *sql.DB, id int, newEmail string) error {
+	executed, err := db.Exec("UPDATE users SET email = ? WHERE id = ?", newEmail, id)
+	if err != nil {
+		return err
+	}
+
+	affectedRows, err := executed.RowsAffected()
+	if err != nil {
+		if err.Error() == "UNIQUE constraint failed: users.email" {
+			return ErrUserWithGivenEmailAlreadyExists
+		}
+
+		return fmt.Errorf("unknown error occured when trying to get number of affected rows: %w", err)
+	}
+
+	if affectedRows == 0 {
+		return ErrUserWithThisIdDoesNotExist
+	} else if affectedRows >= 2 {
+		return fmt.Errorf("affected rows is equal to: %d, this is a database error", affectedRows)
+	}
+
+	return nil
+}

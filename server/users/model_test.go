@@ -328,3 +328,94 @@ func TestCreate(t *testing.T) {
 	})
 
 }
+
+func TestUpdate(t *testing.T) {
+	t.Run("succeeds when everything is ok", func(t *testing.T) {
+		db, err := sql.Open("sqlite3", ":memory:")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = database.Migrate(db, map[string]string{
+			"0001_users": migrationFile,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Insert a user to update
+		id, err := Create(db, "oldemail@domain.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		newEmail := "newemail@domain.com"
+		err = Update(db, id, newEmail)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify the email is updated
+		row := db.QueryRow("SELECT email FROM users WHERE id = ?", id)
+		var receivedEmail string
+		err = row.Scan(&receivedEmail)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if receivedEmail != newEmail {
+			t.Errorf("Expected email to be '%s', but received '%s'", newEmail, receivedEmail)
+		}
+	})
+
+	t.Run("returns ErrUserWithThisIdDoesNotExist when user with given id does not exist", func(t *testing.T) {
+		db, err := sql.Open("sqlite3", ":memory:")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = database.Migrate(db, map[string]string{
+			"0001_users": migrationFile,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		nonExistentId := 9999
+		err = Update(db, nonExistentId, "email@domain.com")
+		if !errors.Is(err, ErrUserWithThisIdDoesNotExist) {
+			t.Errorf("Expected ErrUserWithThisIdDoesNotExist, received: %v", err)
+		}
+	})
+
+	t.Run("returns ErrUserWithGivenEmailAlreadyExists when user with given newEmail already exists", func(t *testing.T) {
+		db, err := sql.Open("sqlite3", ":memory:")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = database.Migrate(db, map[string]string{
+			"0001_users": migrationFile,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create two users
+		_, err = Create(db, "user1@domain.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		id2, err := Create(db, "user2@domain.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Try updating the second user with an email that already exists
+		err = Update(db, id2, "user1@domain.com")
+		if !errors.Is(err, ErrUserWithGivenEmailAlreadyExists) {
+			t.Errorf("Expected ErrUserWithGivenEmailAlreadyExists, received: %v", err)
+		}
+	})
+}
