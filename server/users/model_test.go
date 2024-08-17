@@ -9,9 +9,6 @@ import (
 	"testing"
 )
 
-//go:embed migration.sql
-var migrationFile string
-
 func TestFindOneByEmail(t *testing.T) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -19,7 +16,7 @@ func TestFindOneByEmail(t *testing.T) {
 	}
 
 	err = database.Migrate(db, map[string]string{
-		"0001_users": migrationFile,
+		"0001_users": MigrationFile,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +69,7 @@ func TestFindOneById(t *testing.T) {
 	}
 
 	err = database.Migrate(db, map[string]string{
-		"0001_users": migrationFile,
+		"0001_users": MigrationFile,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +127,7 @@ func TestGetAllByEmailSearch(t *testing.T) {
 	}
 
 	err = database.Migrate(db, map[string]string{
-		"0001_users": migrationFile,
+		"0001_users": MigrationFile,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -212,7 +209,7 @@ func TestCreate(t *testing.T) {
 		}
 
 		err = database.Migrate(db, map[string]string{
-			"0001_users": migrationFile,
+			"0001_users": MigrationFile,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -243,7 +240,7 @@ func TestCreate(t *testing.T) {
 		}
 
 		err = database.Migrate(db, map[string]string{
-			"0001_users": migrationFile,
+			"0001_users": MigrationFile,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -298,7 +295,7 @@ func TestCreate(t *testing.T) {
 		}
 
 		err = database.Migrate(db, map[string]string{
-			"0001_users": migrationFile,
+			"0001_users": MigrationFile,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -337,7 +334,7 @@ func TestUpdate(t *testing.T) {
 		}
 
 		err = database.Migrate(db, map[string]string{
-			"0001_users": migrationFile,
+			"0001_users": MigrationFile,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -375,7 +372,7 @@ func TestUpdate(t *testing.T) {
 		}
 
 		err = database.Migrate(db, map[string]string{
-			"0001_users": migrationFile,
+			"0001_users": MigrationFile,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -395,7 +392,7 @@ func TestUpdate(t *testing.T) {
 		}
 
 		err = database.Migrate(db, map[string]string{
-			"0001_users": migrationFile,
+			"0001_users": MigrationFile,
 		})
 		if err != nil {
 			t.Fatal(err)

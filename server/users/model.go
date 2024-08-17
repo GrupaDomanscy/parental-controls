@@ -2,6 +2,7 @@ package users
 
 import (
 	"database/sql"
+	_ "embed"
 	"errors"
 	"fmt"
 	"log"
@@ -17,6 +18,9 @@ type Model struct {
 	Email     string
 	CreatedAt time.Time
 }
+
+//go:embed migration.sql
+var MigrationFile string
 
 func FindOneById(db *sql.DB, id int) (*Model, error) {
 	row := db.QueryRow("SELECT id, email, created_at FROM users WHERE id = $1", id)
@@ -112,15 +116,14 @@ var ErrUserWithThisIdDoesNotExist = errors.New("user with this id does not exist
 func Update(db *sql.DB, id int, newEmail string) error {
 	executed, err := db.Exec("UPDATE users SET email = ? WHERE id = ?", newEmail, id)
 	if err != nil {
+		if err.Error() == "UNIQUE constraint failed: users.email" {
+			return ErrUserWithGivenEmailAlreadyExists
+		}
 		return err
 	}
 
 	affectedRows, err := executed.RowsAffected()
 	if err != nil {
-		if err.Error() == "UNIQUE constraint failed: users.email" {
-			return ErrUserWithGivenEmailAlreadyExists
-		}
-
 		return fmt.Errorf("unknown error occured when trying to get number of affected rows: %w", err)
 	}
 

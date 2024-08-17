@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"domanscy.group/parental-controls/server/database"
+	"domanscy.group/parental-controls/server/users"
 	"encoding/json"
 	"mailpitsuite"
 	"net/http"
@@ -24,6 +26,13 @@ func openDatabase(t *testing.T) *sql.DB {
 	db, err := sql.Open("sqlite3", testingCfg.DatabaseUrl)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	err = database.Migrate(db, map[string]string{
+		"0001_users": users.MigrationFile,
+	})
+	if err != nil {
+		return nil
 	}
 
 	return db
@@ -176,7 +185,7 @@ func TestHttpAuthLogin(t *testing.T) {
 			Callback string `json:"callback"`
 		}{
 			Email:    "hello@world.local",
-			Callback: "p;789y124q6tyol789uioy7yui828u90ipriogp[r",
+			Callback: "https://localhost",
 		}))
 
 		recorder := httptest.NewRecorder()
