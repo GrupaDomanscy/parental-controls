@@ -2,11 +2,15 @@ package main
 
 import (
 	"database/sql"
+	"domanscy.group/parental-controls/server/users"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 )
+
+var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does not exist")
 
 func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +32,18 @@ func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r 
 		}
 
 		if err := parseUrlAndHandleErrorIfInvalid(w, r, requestBody.Callback); err != nil {
+			return
+		}
+
+		user, err := users.FindOneByEmail(db, requestBody.Email)
+		if err != nil {
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to find user by email: %v", err)
+			return
+		}
+
+		if user == nil {
+			respondWith400(w, r, ErrUserWithGivenEmailDoesNotExist.Error())
 			return
 		}
 

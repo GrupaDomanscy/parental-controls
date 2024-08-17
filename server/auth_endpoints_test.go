@@ -50,19 +50,25 @@ func convertStructToJson(t *testing.T, obj interface{}) []byte {
 	return result
 }
 
+func initializeMailpitAndDeleteAllMessages(t *testing.T) *mailpitsuite.Api {
+	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = mailpit.DeleteAllMessages()
+	if err != nil {
+		t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
+	}
+
+	return mailpit
+}
+
 func TestHttpAuthLogin(t *testing.T) {
 	t.Run("returns 400 if json payload is invalid", func(t *testing.T) {
 		t.Parallel()
-		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer mailpit.Close()
-
-		err = mailpit.DeleteAllMessages()
-		if err != nil {
-			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-		}
 
 		db := openDatabase(t)
 
@@ -91,16 +97,8 @@ func TestHttpAuthLogin(t *testing.T) {
 
 	t.Run("returns 400 if email is invalid", func(t *testing.T) {
 		t.Parallel()
-		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer mailpit.Close()
-
-		err = mailpit.DeleteAllMessages()
-		if err != nil {
-			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-		}
 
 		db := openDatabase(t)
 
@@ -134,16 +132,8 @@ func TestHttpAuthLogin(t *testing.T) {
 
 	t.Run("returns 400 if callback is invalid", func(t *testing.T) {
 		t.Parallel()
-		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer mailpit.Close()
-
-		err = mailpit.DeleteAllMessages()
-		if err != nil {
-			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-		}
 
 		db := openDatabase(t)
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
@@ -177,16 +167,8 @@ func TestHttpAuthLogin(t *testing.T) {
 
 	t.Run("returns ErrUserWithGivenEmailDoesNotExist when user with given email does not exist", func(t *testing.T) {
 		t.Parallel()
-		mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer mailpit.Close()
-
-		err = mailpit.DeleteAllMessages()
-		if err != nil {
-			t.Fatalf("failed to delete all mailpit messages: %s", err.Error())
-		}
 
 		db := openDatabase(t)
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
@@ -211,7 +193,7 @@ func TestHttpAuthLogin(t *testing.T) {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
 
-		if recorder.Body.String() != ErrInvalidCallbackUrl.Error() {
+		if recorder.Body.String() != ErrUserWithGivenEmailDoesNotExist.Error() {
 			t.Errorf("Got %s, want %s", recorder.Body.String(), ErrInvalidCallbackUrl.Error())
 		}
 
