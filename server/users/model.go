@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+var ErrEmailCannotBeEmpty = errors.New("email can not be empty")
+var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
+
 type Model struct {
 	Id        int
 	Email     string
@@ -80,4 +83,26 @@ func GetAllByEmailSearch(db *sql.DB, emailPart string) ([]Model, error) {
 	}
 
 	return users, nil
+}
+
+func Create(db *sql.DB, email string) (int, error) {
+	if email == "" {
+		return 0, ErrEmailCannotBeEmpty
+	}
+
+	exec, err := db.Exec("INSERT INTO users (email) VALUES (?);", email)
+	if err != nil {
+		if err.Error() == "UNIQUE constraint failed: users.email" {
+			return 0, ErrUserWithGivenEmailAlreadyExists
+		}
+
+		return 0, fmt.Errorf("an error occured while trying to execute query 'INSERT INTO users ...': %w", err)
+	}
+
+	id, err := exec.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("an error occured while trying to get last inserted id from database: %w", err)
+	}
+
+	return int(id), nil
 }
