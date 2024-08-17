@@ -123,5 +123,78 @@ func TestFindOneById(t *testing.T) {
 }
 
 func TestGetAllByEmailSearch(t *testing.T) {
-	// TODO
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = database.Migrate(db, map[string]string{
+		"0001_users": migrationFile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var ids []int
+
+	for email := range []string{"test@localhost.local", "test2@localhost.local", "hoho@sss.local"} {
+		info, err := db.Exec("INSERT INTO users (email) VALUES (?);", email)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		id, err := info.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ids = append(ids, int(id))
+	}
+
+	t.Parallel()
+
+	t.Run("returns multiple results if query matches multiple rows", func(t *testing.T) {
+		var userModels []Model
+		userModels, err = GetAllByEmailSearch(db, "est")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for i, userModel := range userModels {
+			if userModel.Id != ids[i] {
+				t.Errorf("Expected id to be %d. Received: %d.", ids[i], userModel.Id)
+			}
+
+			if userModel.Email != "test@localhost.local" && userModel.Email != "test@localhost.local2" {
+				t.Errorf("Expected email to be equal to 'test@localhost.local' or 'test@localhost.local2', received '%s'.", userModel.Email)
+			}
+
+			if userModel.CreatedAt.UnixMilli() == 0 {
+				t.Errorf("Expected created_at to not be equal to 0, received %d.", userModel.CreatedAt.UnixMilli())
+			}
+		}
+	})
+
+	t.Run("returns nothing if query is empty", func(t *testing.T) {
+		var userModels []Model
+		userModels, err = GetAllByEmailSearch(db, "est")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(userModels) != 0 {
+			t.Errorf("Expected 0 user models, received: %d", len(userModels))
+		}
+	})
+
+	t.Run("returns empty array if query does not match any row", func(t *testing.T) {
+		var userModels []Model
+		userModels, err = GetAllByEmailSearch(db, "olijkhhasdjlksdjagasjkdhasdjhk")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(userModels) != 0 {
+			t.Errorf("Expected 0 user models, received: %d", len(userModels))
+		}
+	})
 }

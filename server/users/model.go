@@ -46,6 +46,10 @@ func FindOneByEmail(db *sql.DB, email string) (*Model, error) {
 }
 
 func GetAllByEmailSearch(db *sql.DB, emailPart string) ([]Model, error) {
+	if len(emailPart) == 0 {
+		return []Model{}, nil
+	}
+
 	emailPart = strings.Join(strings.Split(emailPart, "_"), "\\_")
 	emailPart = strings.Join(strings.Split(emailPart, "%"), "\\%")
 
