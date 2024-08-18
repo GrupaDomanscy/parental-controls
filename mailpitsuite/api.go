@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -192,7 +193,12 @@ func (api *Api) GetAllMessages() ([]Message, error) {
 			return nil, fmt.Errorf("failed to read response buffer: %w", err)
 		}
 
-		defer response.Body.Close()
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				log.Println(err)
+			}
+		}(response.Body)
 
 		if response.StatusCode != 200 {
 			responseBodyStringBuffer := string(responseBodyBuffer)
