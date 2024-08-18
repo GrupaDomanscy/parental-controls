@@ -85,6 +85,7 @@ func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r 
 			mailBody.String(),
 		)
 		if err != nil {
+			respondWith500(w, r, "")
 			return
 		}
 
