@@ -71,6 +71,9 @@ func (store *Store) PutAndGenerateRandomKeyForValue(value string) (string, error
 var ErrEntryDoesNotExist = errors.New("entry does not exist")
 
 func (store *Store) Get(key string) (string, error) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+
 	val, ok := store.data[key]
 	if !ok {
 		return "", ErrEntryDoesNotExist
