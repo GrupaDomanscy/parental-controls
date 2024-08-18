@@ -18,7 +18,7 @@ import (
 
 var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does not exist")
 
-func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, _ *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -41,14 +41,38 @@ func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, db *sql.DB) func(w h
 			return
 		}
 
-		user, err := users.FindOneByEmail(db, requestBody.Email)
+		tx, err := db.BeginTx(r.Context(), nil)
 		if err != nil {
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to start a transaction: %v", err)
+			return
+		}
+
+		defer func(tx *sql.Tx) {
+			err := tx.Commit()
+			if err != nil {
+				log.Printf("failed to commit the transaction: %v", err)
+			}
+		}(tx)
+
+		user, err := users.FindOneByEmail(tx, requestBody.Email)
+		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith500(w, r, "")
 			log.Printf("error occured while trying to find user by email: %v", err)
 			return
 		}
 
 		if user == nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith400(w, r, ErrUserWithGivenEmailDoesNotExist.Error())
 			return
 		}
@@ -69,6 +93,11 @@ func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, db *sql.DB) func(w h
 
 		ip, err := getIPAddressFromRequest(w, r)
 		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			log.Println(err)
 			respondWith400(w, r, err.Error())
 			return
@@ -91,6 +120,11 @@ func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, db *sql.DB) func(w h
 			mailBody.String(),
 		)
 		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith500(w, r, "")
 			return
 		}
@@ -105,7 +139,7 @@ var startRegistrationProcessEmailTemplate = template.Must(template.New("email_te
 
 var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
 
-func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecache.Store, _ *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -127,22 +161,52 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecac
 			return
 		}
 
-		user, err := users.FindOneByEmail(db, requestBody.Email)
+		tx, err := db.BeginTx(r.Context(), nil)
 		if err != nil {
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to start a transaction: %v", err)
+			return
+		}
+
+		defer func(tx *sql.Tx) {
+			err := tx.Commit()
+			if err != nil {
+				log.Printf("failed to commit the transaction: %v", err)
+			}
+		}(tx)
+
+		user, err := users.FindOneByEmail(tx, requestBody.Email)
+		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith500(w, r, "")
 			log.Printf("error occured while trying to find user by email: %v", err)
 			return
 		}
 
 		if user != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith400(w, r, ErrUserWithGivenEmailAlreadyExists.Error())
 			return
 		}
 
-		regkey, err := regkeysStore.PutAndGenerateRandomKeyForValue(requestBody.Email)
+		regkey, err := regkeysStore.PutAndGenerateRandomKeyForValue(requestBody.Email + ";" + callbackUrl.String())
 		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith500(w, r, "")
 			log.Printf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
+			return
 		}
 
 		emailBody := bytes.NewBuffer([]byte{})
@@ -156,8 +220,16 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecac
 			Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
 		})
 		if err != nil {
+			regkeysStore.Delete(regkey)
+
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
 			respondWith500(w, r, "")
-			log.Printf("an errorm occured while trying to generate email body: %v", err)
+			log.Printf("an error occured while trying to generate email body: %v", err)
+			return
 		}
 
 		err = sendMailAndHandleError(
@@ -170,11 +242,119 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecac
 			emailBody.String(),
 		)
 		if err != nil {
-			log.Println(err)
+			regkeysStore.Delete(regkey)
+
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
+			log.Printf("an error occured while trying to send mail: %v", err)
 			respondWith500(w, r, "")
 			return
 		}
 
 		w.WriteHeader(204)
+	}
+}
+
+var ErrRegistrationKeyCannotBeEmpty = errors.New("registration key can not be empty")
+var ErrInvalidRegistrationKey = errors.New("invalid registration key")
+
+func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *simplecache.Store, oneTimeAccessTokenStore *simplecache.Store, db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		regkey := chi.URLParam(r, "regkey")
+		if regkey == "" {
+			respondWith400(w, r, ErrRegistrationKeyCannotBeEmpty.Error())
+			return
+		}
+
+		regkey, err := url.PathUnescape(regkey)
+		if err != nil {
+			respondWith400(w, r, ErrInvalidRegistrationKey.Error())
+			return
+		}
+
+		cachePayload, err := regkeyStore.Get(regkey)
+		if err != nil {
+			respondWith400(w, r, ErrInvalidRegistrationKey.Error())
+			return
+		}
+
+		splittedCachePayload := strings.Split(cachePayload, ";")
+		if len(splittedCachePayload) != 2 {
+			respondWith500(w, r, "")
+			log.Printf("Expected two strings in the array after splitting the payload from cache, but received: %v", len(splittedCachePayload))
+			return
+		}
+
+		emailAddress := splittedCachePayload[0]
+		callbackUrl, err := url.Parse(splittedCachePayload[1])
+		if err != nil {
+			respondWith500(w, r, "")
+			log.Printf("failed to parse callback url: %v", callbackUrl)
+		}
+
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			respondWith500(w, r, "")
+			log.Println(err)
+			return
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				log.Printf("error occured while trying to commit transaction: %v", err)
+			}
+		}()
+
+		userId, err := users.Create(tx, emailAddress)
+		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to create user in db: %v", err)
+			return
+		}
+
+		value, err := oneTimeAccessTokenStore.PutAndGenerateRandomKeyForValue(fmt.Sprintf("userId:%d", userId))
+		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to generate random access token: %v", err)
+			return
+		}
+
+		queryParams := callbackUrl.Query()
+		queryParams.Set("oneTimeAccessToken", value)
+
+		callbackUrl.RawQuery = queryParams.Encode()
+
+		w.Header().Add("Location", callbackUrl.String())
+		w.WriteHeader(http.StatusTemporaryRedirect)
+
+		_, err = w.Write([]byte("Przekierowywanie, proszę czekać..."))
+		if err != nil {
+			oneTimeAccessTokenStore.Delete(value)
+
+			txErr := tx.Rollback()
+			if txErr != nil {
+				log.Printf("failed to rollback the transaction: %v", txErr)
+			}
+
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to write response body to the client: %v", err)
+			return
+		}
+
+		regkeyStore.Delete(regkey)
 	}
 }

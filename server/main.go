@@ -27,20 +27,24 @@ type ServerConfig struct {
 	DatabaseUrl string `env:"DATABASE_URL"`
 }
 
-func NewServer(cfg ServerConfig, regkeysStore *simplecache.Store, db *sql.DB) http.Handler {
+func NewServer(cfg ServerConfig, regkeysStore *simplecache.Store, oneTimeAccessTokenStore *simplecache.Store, db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
-	r.Post("/login", HttpAuthLogin(&cfg, regkeysStore, db))
-	r.Post("/register", HttpAuthStartRegistrationProcess(&cfg, regkeysStore, db))
+	r.Post("/login", HttpAuthLogin(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
+	r.Post("/register", HttpAuthStartRegistrationProcess(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
+	r.Get("/finish_registration/{regkey}", HttpAuthFinishRegistrationProcess(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
 
 	return r
 }
 
 func main() {
+	log.SetFlags(log.Ldate | log.LUTC | log.Lmicroseconds | log.Llongfile)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	regkeysStore := simplecache.InitializeStore(ctx, time.Minute*15)
+	oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 	cfg := ServerConfig{}
 	env.ReadToCfg(&cfg)
@@ -69,7 +73,7 @@ func main() {
 		}
 	}(db)
 
-	handler := NewServer(cfg, regkeysStore, db)
+	handler := NewServer(cfg, regkeysStore, oneTimeAccessTokenStore, db)
 
 	err = http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.ServerAddress, cfg.ServerPort), handler)
 	if err != nil {

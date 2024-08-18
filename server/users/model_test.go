@@ -323,7 +323,7 @@ func TestCreate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		row := db.QueryRow("SELECT COUNT(*) FROM users")
+		row := tx.QueryRow("SELECT COUNT(*) FROM users")
 		var rows int
 
 		err = row.Scan(&rows)
@@ -370,7 +370,7 @@ func TestCreate(t *testing.T) {
 			t.Errorf("Expected id to be bigger than 0, received %d.", id)
 		}
 
-		row := db.QueryRow("SELECT id, email, created_at FROM users WHERE id = ?", id)
+		row := tx.QueryRow("SELECT id, email, created_at FROM users WHERE id = ?", id)
 		var receivedEmail string
 
 		err = row.Scan(&userModel.Id, &receivedEmail, &userModel.CreatedAt)
@@ -390,7 +390,7 @@ func TestCreate(t *testing.T) {
 			t.Errorf("Expected created at to not be equal to 0.")
 		}
 
-		row = db.QueryRow("SELECT COUNT(*) FROM users")
+		row = tx.QueryRow("SELECT COUNT(*) FROM users")
 		var rows int
 
 		err = row.Scan(&rows)
@@ -438,7 +438,7 @@ func TestCreate(t *testing.T) {
 			t.Errorf("Expected ErrUserWithGivenEmailAlreadyExists, received: %v", err)
 		}
 
-		row := db.QueryRow("SELECT COUNT(*) FROM users")
+		row := tx.QueryRow("SELECT COUNT(*) FROM users")
 		var rows int
 
 		err = row.Scan(&rows)
@@ -492,7 +492,7 @@ func TestUpdate(t *testing.T) {
 		}
 
 		// Verify the email is updated
-		row := db.QueryRow("SELECT email FROM users WHERE id = ?", id)
+		row := tx.QueryRow("SELECT email FROM users WHERE id = ?", id)
 		var receivedEmail string
 		err = row.Scan(&receivedEmail)
 		if err != nil {

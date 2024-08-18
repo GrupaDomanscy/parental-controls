@@ -9,9 +9,12 @@ import (
 	"domanscy.group/simplecache"
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"github.com/go-chi/chi"
 	"mailpitsuite"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +40,7 @@ func openDatabase(t *testing.T) *sql.DB {
 		"0001_users": users.MigrationFile,
 	})
 	if err != nil {
-		return nil
+		t.Fatal(err)
 	}
 
 	return db
@@ -131,7 +134,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, store, db)(recorder, request)
+		HttpAuthLogin(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
@@ -157,7 +160,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -183,7 +187,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, store, db)(recorder, request)
+		HttpAuthLogin(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -208,8 +212,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
-
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
 			err := db.Close()
@@ -235,7 +239,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, store, db)(recorder, request)
+		HttpAuthLogin(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -260,7 +264,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -287,7 +292,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, store, db)(recorder, request)
+		HttpAuthLogin(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -319,7 +324,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -345,7 +351,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -370,7 +376,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -396,7 +403,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -421,7 +428,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -431,7 +439,22 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(db)
 
-		_, err := users.Create(db, "existing@user.local")
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = users.Create(tx, "existing@user.local")
+		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				t.Error(txErr)
+			}
+
+			t.Fatal(err)
+		}
+
+		err = tx.Commit()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -445,14 +468,20 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		}))
 
 		recorder := httptest.NewRecorder()
+
 		request, err := http.NewRequest("POST", "http://localhost:8080/register", bodyReader)
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		requestCtx, cancelRequestCtx := context.WithCancel(request.Context())
+		request = request.WithContext(requestCtx)
+
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		cancelRequestCtx()
+
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -464,7 +493,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		assertMailpitInboxIsEmpty(t, mailpit)
 	})
 
-	t.Run("returns 204 and sends registration email without non-official site warning when everything is ok", func(t *testing.T) {
+	t.Run("returns 204, sends registration email without non-official site warning and puts correct value in regkey cache when everything is ok", func(t *testing.T) {
 		t.Parallel()
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer func(mailpit *mailpitsuite.Api) {
@@ -477,7 +506,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -505,7 +535,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusNoContent {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusNoContent)
 		}
@@ -545,7 +575,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -573,7 +604,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Code != http.StatusNoContent {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusNoContent)
 		}
@@ -596,6 +627,148 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 
 			assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
+		}
+	})
+}
+
+func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
+	t.Parallel()
+
+	t.Run("generates one time access token, redirects to callback url with generated access token and creates the user when everything is ok", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		regkeyStore := simplecache.InitializeStore(ctx, time.Minute)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+
+		value, err := regkeyStore.PutAndGenerateRandomKeyForValue("new@user.local;http://officialinstance.local/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
+
+		recorder := httptest.NewRecorder()
+		request, err := http.NewRequest(http.MethodGet, "http://localhost:8080/finish_registration/"+url.PathEscape(value), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("regkey", url.PathEscape(value))
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+		HttpAuthFinishRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+
+		if recorder.Code != http.StatusTemporaryRedirect {
+			t.Errorf("Got %d, want %d, response body: %s", recorder.Code, http.StatusTemporaryRedirect, recorder.Body.String())
+		}
+
+		keys := oneTimeAccessTokenStore.GetAllKeys()
+		if len(keys) != 1 {
+			t.Errorf("Expected 1 key in store, received: %d", len(keys))
+		}
+
+		location := recorder.Header().Get("Location")
+		expectedUrl, err := url.Parse("http://officialinstance.local/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		queryParams := expectedUrl.Query()
+		queryParams.Set("oneTimeAccessToken", keys[0])
+
+		expectedUrl.RawQuery = queryParams.Encode()
+
+		if location != expectedUrl.String() {
+			t.Errorf("Expected location to be %s, received %s", expectedUrl.String(), location)
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		user, err := users.FindOneByEmail(tx, "new@user.local")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		payload, err := oneTimeAccessTokenStore.Get(keys[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if payload != fmt.Sprintf("userId:%d", user.Id) {
+			t.Errorf("Expected payload to be: %s, received %s", fmt.Sprintf("userId:%d", user.Id), payload)
+		}
+	})
+
+	t.Run("disables already used regkey and returns 400 if user tries to use it", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		regkeyStore := simplecache.InitializeStore(ctx, time.Minute)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+
+		value, err := regkeyStore.PutAndGenerateRandomKeyForValue("new@user.local;http://officialinstance.local/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
+
+		recorder := httptest.NewRecorder()
+		request, err := http.NewRequest(http.MethodGet, "http://localhost:8080/finish_registration/"+url.PathEscape(value), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("regkey", url.PathEscape(value))
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+
+		HttpAuthFinishRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Code != http.StatusTemporaryRedirect {
+			t.Errorf("Got %d, want %d, response body: %s", recorder.Code, http.StatusTemporaryRedirect, recorder.Body.String())
+		}
+
+		recorder = httptest.NewRecorder()
+
+		HttpAuthFinishRegistrationProcess(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("Got %d, want %d, response body: %s", recorder.Code, http.StatusTemporaryRedirect, recorder.Body.String())
+		}
+
+		responseBody := recorder.Body.String()
+
+		if responseBody != ErrInvalidRegistrationKey.Error() {
+			t.Errorf("Expected %s, received %s", ErrInvalidRegistrationKey.Error(), responseBody)
 		}
 	})
 }
