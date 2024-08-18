@@ -81,3 +81,23 @@ func (store *Store) Get(key string) (string, error) {
 
 	return val, nil
 }
+
+func (store *Store) Delete(key string) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+
+	delete(store.data, key)
+}
+
+func (store *Store) GetAllKeys() []string {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+
+	keys := make([]string, 0)
+
+	for key, _ := range store.data {
+		keys = append(keys, key)
+	}
+
+	return keys
+}
