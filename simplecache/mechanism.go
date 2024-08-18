@@ -3,7 +3,7 @@ package simplecache
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"sync"
@@ -50,7 +50,7 @@ func generateRandomString(length int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("an unknown error occured while trying to generate random bytes using crypto/rand.Read: %w", err)
 	}
-	return base64.StdEncoding.EncodeToString(b), nil
+	return base32.StdEncoding.EncodeToString(b), nil
 }
 
 func (store *Store) PutAndGenerateRandomKeyForValue(value string) (string, error) {
