@@ -224,3 +224,69 @@ func (api *Api) GetAllMessages() ([]Message, error) {
 
 	return allMessages, nil
 }
+
+type Attachment struct {
+	ContentID   string `json:"ContentID"`
+	ContentType string `json:"ContentType"`
+	FileName    string `json:"FileName"`
+	PartID      string `json:"PartID"`
+	Size        int    `json:"Size"`
+}
+
+type MessageSummary struct {
+	Attachments []Attachment `json:"Attachments"`
+	Bcc         []Address    `json:"Bcc"`
+	Cc          []Address    `json:"Cc"`
+	Date        time.Time    `json:"Date"`
+	From        Address      `json:"From"`
+	HTML        string       `json:"HTML"`
+	ID          string       `json:"ID"`
+	Inline      []Attachment `json:"Inline"`
+	MessageID   string       `json:"MessageID"`
+	ReplyTo     []Address    `json:"ReplyTo"`
+	ReturnPath  string       `json:"ReturnPath"`
+	Size        int          `json:"Size"`
+	Subject     string       `json:"Subject"`
+	Tags        []string     `json:"Tags"`
+	Text        string       `json:"Text"`
+	To          []Address    `json:"To"`
+}
+
+func (api *Api) GetMessageSummary(messageId string) (*MessageSummary, error) {
+	request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v1/message/%s", api.baseUrl, messageId), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error occured while creating request object: %w", err)
+	}
+
+	response, err := api.client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("an error occured while trying to send the request to mailpit: %w", err)
+	}
+
+	responseBodyBuffer, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response buffer: %w", err)
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(response.Body)
+
+	responseBodyStringBuffer := string(responseBodyBuffer)
+
+	if response.StatusCode != 200 {
+		return nil, fmt.Errorf("expected status 200, received status %d, response body: %s", response.StatusCode, responseBodyStringBuffer)
+	}
+
+	responseParsed := &MessageSummary{}
+
+	err = json.Unmarshal(responseBodyBuffer, responseParsed)
+	if err != nil {
+		return nil, fmt.Errorf("an error occured while trying to parse json response body")
+	}
+
+	return responseParsed, nil
+}
