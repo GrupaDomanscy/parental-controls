@@ -1,19 +1,20 @@
-package regkeys
+package simplecache
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
 
 type Store struct {
-	ctx     context.Context
-	mutex   sync.Mutex
-	regkeys map[string]string
-	ttl     int64
+	ctx   context.Context
+	mutex sync.Mutex
+	data  map[string]string
+	ttl   int64
 }
 
 func (store *Store) deleteAfterTTL(regkey string) {
@@ -26,7 +27,7 @@ func (store *Store) deleteAfterTTL(regkey string) {
 		default:
 			if regkeyTTL < time.Now().UnixMilli() {
 				store.mutex.Lock()
-				delete(store.regkeys, regkey)
+				delete(store.data, regkey)
 				store.mutex.Unlock()
 				return
 			}
@@ -36,10 +37,10 @@ func (store *Store) deleteAfterTTL(regkey string) {
 
 func InitializeStore(ctx context.Context, ttl time.Duration) *Store {
 	return &Store{
-		ctx:     ctx,
-		mutex:   sync.Mutex{},
-		regkeys: make(map[string]string),
-		ttl:     ttl.Milliseconds(),
+		ctx:   ctx,
+		mutex: sync.Mutex{},
+		data:  make(map[string]string),
+		ttl:   ttl.Milliseconds(),
 	}
 }
 
@@ -52,17 +53,28 @@ func generateRandomString(length int) (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-func (store *Store) GenerateNewRegkeyForEmail(email string) (string, error) {
+func (store *Store) PutAndGenerateRandomKeyForValue(value string) (string, error) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
 
-	regkey, err := generateRandomString(128)
+	key, err := generateRandomString(128)
 	if err != nil {
-		return "", fmt.Errorf("an unknown error occured while trying to generate a random string: %w", err)
+		return "", fmt.Errorf("an unknown error occured while trying to generate a random key: %w", err)
 	}
-	store.regkeys[regkey] = email
+	store.data[key] = value
 
-	go store.deleteAfterTTL(regkey)
+	go store.deleteAfterTTL(key)
 
-	return regkey, nil
+	return key, nil
+}
+
+var ErrEntryDoesNotExist = errors.New("entry does not exist")
+
+func (store *Store) Get(key string) (string, error) {
+	val, ok := store.data[key]
+	if !ok {
+		return "", ErrEntryDoesNotExist
+	}
+
+	return val, nil
 }

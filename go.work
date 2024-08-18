@@ -5,4 +5,5 @@ use (
 	./env
 	./server
 	./mailpitsuite
+	./simplecache
 )

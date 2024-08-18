@@ -5,8 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"domanscy.group/parental-controls/server/database"
-	"domanscy.group/parental-controls/server/regkeys"
 	"domanscy.group/parental-controls/server/users"
+	"domanscy.group/simplecache"
 	_ "embed"
 	"encoding/json"
 	"mailpitsuite"
@@ -92,7 +92,7 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -132,7 +132,7 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -177,7 +177,7 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -223,7 +223,7 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -276,7 +276,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -321,7 +321,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -366,7 +366,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -416,7 +416,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -473,7 +473,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := regkeys.InitializeStore(ctx, time.Second)
+		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 

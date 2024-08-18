@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"database/sql"
-	"domanscy.group/parental-controls/server/regkeys"
 	"domanscy.group/parental-controls/server/users"
+	"domanscy.group/simplecache"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -18,7 +18,7 @@ import (
 
 var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does not exist")
 
-func HttpAuthLogin(cfg *ServerConfig, _ *regkeys.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -105,7 +105,7 @@ var startRegistrationProcessEmailTemplate = template.Must(template.New("email_te
 
 var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
 
-func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *regkeys.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -139,7 +139,7 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *regkeys.S
 			return
 		}
 
-		regkey, err := regkeysStore.GenerateNewRegkeyForEmail(requestBody.Email)
+		regkey, err := regkeysStore.PutAndGenerateRandomKeyForValue(requestBody.Email)
 		if err != nil {
 			respondWith500(w, r, "")
 			log.Printf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
