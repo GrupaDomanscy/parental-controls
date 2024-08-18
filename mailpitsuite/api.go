@@ -196,7 +196,7 @@ func (api *Api) GetAllMessages() ([]Message, error) {
 
 		if response.StatusCode != 200 {
 			responseBodyStringBuffer := string(responseBodyBuffer)
-			return nil, fmt.Errorf("expected status 200, received status %d, request body: %s", response.StatusCode, responseBodyStringBuffer)
+			return nil, fmt.Errorf("expected status 200, received status %d, response body: %s", response.StatusCode, responseBodyStringBuffer)
 		}
 
 		var paginatedMessages = &PaginatedMessages{}
