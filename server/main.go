@@ -1,16 +1,22 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"domanscy.group/env"
+	"domanscy.group/parental-controls/server/database"
+	"domanscy.group/parental-controls/server/regkeys"
+	"domanscy.group/parental-controls/server/users"
 	"fmt"
 	"github.com/go-chi/chi"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"net/http"
+	"time"
 )
 
 type ServerConfig struct {
+	AppUrl        string `env:"APP_URL"`
 	ServerAddress string `env:"SERVER_ADDRESS"`
 	ServerPort    uint16 `env:"SERVER_PORT"`
 
@@ -21,23 +27,37 @@ type ServerConfig struct {
 	DatabaseUrl string `env:"DATABASE_URL"`
 }
 
-func NewServer(cfg ServerConfig, db *sql.DB) http.Handler {
+func NewServer(cfg ServerConfig, regkeysStore *regkeys.Store, db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
-	r.Post("/login", HttpAuthLogin(&cfg, db))
-	r.Post("/register", HttpAuthStartRegistrationProcess(&cfg, db))
+	r.Post("/login", HttpAuthLogin(&cfg, regkeysStore, db))
+	r.Post("/register", HttpAuthStartRegistrationProcess(&cfg, regkeysStore, db))
 
 	return r
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	regkeysStore := regkeys.InitializeStore(ctx, time.Minute*15)
+
 	cfg := ServerConfig{}
 	env.ReadToCfg(&cfg)
+
+	// remove trailing slash
+	if cfg.AppUrl[len(cfg.AppUrl)-1] == '/' {
+		cfg.AppUrl = cfg.AppUrl[:len(cfg.AppUrl)-1]
+	}
 
 	db, err := sql.Open("sqlite3", cfg.DatabaseUrl)
 	if err != nil {
 		panic(err)
 	}
+
+	database.Migrate(db, map[string]string{
+		"0001_users": users.MigrationFile,
+	})
 
 	defer func(db *sql.DB) {
 		err := db.Close()
@@ -46,7 +66,7 @@ func main() {
 		}
 	}(db)
 
-	handler := NewServer(cfg, db)
+	handler := NewServer(cfg, regkeysStore, db)
 
 	err = http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.ServerAddress, cfg.ServerPort), handler)
 	if err != nil {

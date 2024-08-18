@@ -1,18 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"domanscy.group/parental-controls/server/regkeys"
 	"domanscy.group/parental-controls/server/users"
+	_ "embed"
 	"errors"
 	"fmt"
+	"github.com/go-chi/chi"
+	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does not exist")
 
-func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthLogin(cfg *ServerConfig, _ *regkeys.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -31,7 +37,7 @@ func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r 
 			return
 		}
 
-		if err := parseUrlAndHandleErrorIfInvalid(w, r, requestBody.Callback); err != nil {
+		if _, err := parseUrlAndHandleErrorIfInvalid(w, r, requestBody.Callback); err != nil {
 			return
 		}
 
@@ -93,9 +99,13 @@ func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r 
 	}
 }
 
+//go:embed mail_templates/register.gohtml
+var startRegistrationProcessEmailBody string
+var startRegistrationProcessEmailTemplate = template.Must(template.New("email_template").Parse(startRegistrationProcessEmailBody))
+
 var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
 
-func HttpAuthStartRegistrationProcess(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *regkeys.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -112,7 +122,8 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, db *sql.DB) func(w http
 			return
 		}
 
-		if err := parseUrlAndHandleErrorIfInvalid(w, r, requestBody.Callback); err != nil {
+		callbackUrl, err := parseUrlAndHandleErrorIfInvalid(w, r, requestBody.Callback)
+		if err != nil {
 			return
 		}
 
@@ -128,32 +139,26 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, db *sql.DB) func(w http
 			return
 		}
 
-		var message strings.Builder
-
-		message.WriteString(fmt.Sprintf("From: %s\r\n", cfg.EmailFromAddress))
-		message.WriteString(fmt.Sprintf("To: %s\r\n", requestBody.Email))
-		message.WriteString(fmt.Sprintf("Subject: %s\r\n", "Zaloguj się"))
-		message.WriteString(fmt.Sprintf("\r\n"))
-		message.WriteString(fmt.Sprintf("Hello world!\r\n"))
-
-		var mailBody strings.Builder
-
-		mailBody.WriteString("Witaj w systemie kontroli rodzicielskiej!<br />")
-		mailBody.WriteString(fmt.Sprintf("Jeżeli chcesz się zarejestrować, kliknij przycisk poniżej. Jeżeli to nie ty się rejestrowałeś, zignoruj tego maila, ktoś najwyraźniej się pomylił.<br />"))
-		mailBody.WriteString(fmt.Sprintf("<br />"))
-
-		ip, err := getIPAddressFromRequest(w, r)
+		regkey, err := regkeysStore.GenerateNewRegkeyForEmail(requestBody.Email)
 		if err != nil {
-			log.Println(err)
-			respondWith400(w, r, err.Error())
-			return
+			respondWith500(w, r, "")
+			log.Printf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
 		}
 
-		mailBody.WriteString(fmt.Sprintf("Adres IP prośby: %s<br />", ip))
-
-		mailBody.WriteString(fmt.Sprintf("<br />"))
-
-		mailBody.WriteString(fmt.Sprintf("<a href=\"#\">Zarejestruj</a>"))
+		emailBody := bytes.NewBuffer([]byte{})
+		err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
+			InstanceAddr       string
+			IsOfficialInstance bool
+			Link               string
+		}{
+			InstanceAddr:       callbackUrl.Host,
+			IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
+			Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
+		})
+		if err != nil {
+			respondWith500(w, r, "")
+			log.Printf("an errorm occured while trying to generate email body: %v", err)
+		}
 
 		err = sendMailAndHandleError(
 			w, r,
@@ -162,9 +167,10 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, db *sql.DB) func(w http
 			cfg.EmailFromAddress,
 			requestBody.Email,
 			"Potwierdź rejestracje w kontroli rodzicielskiej",
-			mailBody.String(),
+			emailBody.String(),
 		)
 		if err != nil {
+			log.Println(err)
 			respondWith500(w, r, "")
 			return
 		}

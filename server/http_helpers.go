@@ -53,17 +53,17 @@ func parseEmailAddressAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func parseUrlAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Request, value string) error {
+func parseUrlAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Request, value string) (*url.URL, error) {
 	parsed, err := url.Parse(value)
 	if err != nil {
 		respondWith400(w, r, ErrInvalidCallbackUrl.Error())
-		return err
+		return nil, err
 	} else if parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		respondWith400(w, r, ErrInvalidCallbackUrl.Error())
-		return ErrInvalidCallbackUrl
+		return nil, ErrInvalidCallbackUrl
 	}
 
-	return nil
+	return parsed, nil
 }
 
 func respondWith500(w http.ResponseWriter, _ *http.Request, message string) {

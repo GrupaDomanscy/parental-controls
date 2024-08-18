@@ -2,18 +2,23 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"domanscy.group/parental-controls/server/database"
+	"domanscy.group/parental-controls/server/regkeys"
 	"domanscy.group/parental-controls/server/users"
+	_ "embed"
 	"encoding/json"
 	"mailpitsuite"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 var testingCfg = &ServerConfig{
+	AppUrl:           "http://127.0.0.1:8080",
 	ServerAddress:    "127.0.0.1",
 	ServerPort:       8080,
 	EmailFromAddress: "test@parental-controls.local",
@@ -84,6 +89,11 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
 
 		bodyReader := strings.NewReader("notavalidjson")
@@ -96,7 +106,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, db)(recorder, request)
+		HttpAuthLogin(testingCfg, store, db)(recorder, request)
 
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
@@ -119,6 +129,11 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
 
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
@@ -137,7 +152,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, db)(recorder, request)
+		HttpAuthLogin(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -159,7 +174,13 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
+
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
@@ -177,7 +198,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, db)(recorder, request)
+		HttpAuthLogin(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -199,7 +220,13 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
+
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
@@ -217,7 +244,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthLogin(testingCfg, db)(recorder, request)
+		HttpAuthLogin(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -229,6 +256,9 @@ func TestHttpAuthLogin(t *testing.T) {
 		assertMailpitInboxIsEmpty(t, mailpit)
 	})
 }
+
+//go:embed embeds_for_testing/auth_endpoints_test_embed_01.txt
+var embed01 string
 
 func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 	t.Parallel()
@@ -243,7 +273,13 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
+
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
@@ -260,7 +296,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -282,7 +318,13 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
+
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
@@ -299,7 +341,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -320,6 +362,11 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 				t.Fatal(err)
 			}
 		}(mailpit)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -344,7 +391,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusBadRequest {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusBadRequest)
 		}
@@ -356,7 +403,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		assertMailpitInboxIsEmpty(t, mailpit)
 	})
 
-	t.Run("returns 204 and sends registration email when everything is ok", func(t *testing.T) {
+	t.Run("returns 204 and sends registration email without non-official site warning when everything is ok", func(t *testing.T) {
 		t.Parallel()
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer func(mailpit *mailpitsuite.Api) {
@@ -366,7 +413,13 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
 		db := openDatabase(t)
+
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
@@ -383,7 +436,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		request.RemoteAddr = "127.0.0.1:51789"
 
-		HttpAuthStartRegistrationProcess(testingCfg, db)(recorder, request)
+		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
 		if recorder.Code != http.StatusNoContent {
 			t.Errorf("Got %d, want %d", recorder.Code, http.StatusNoContent)
 		}
@@ -395,6 +448,72 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		if len(messages) != 1 {
 			t.Errorf("Expected 1 message, got %d", len(messages))
+		} else {
+			messageSummary, err := mailpit.GetMessageSummary(messages[0].ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !strings.Contains(messageSummary.HTML, embed01) {
+				t.Errorf("Email is invalid.")
+			}
+		}
+	})
+
+	t.Run("returns 204 and sends registration email with warning about non-official site when everything is ok and callback is not from official site", func(t *testing.T) {
+		t.Parallel()
+		mailpit := initializeMailpitAndDeleteAllMessages(t)
+		defer func(mailpit *mailpitsuite.Api) {
+			err := mailpit.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mailpit)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		store := regkeys.InitializeStore(ctx, time.Second)
+
+		db := openDatabase(t)
+
+		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
+			Email    string `json:"email"`
+			Callback string `json:"callback"`
+		}{
+			Email:    "new@user.local",
+			Callback: "http://officialinstance.local/callback",
+		}))
+
+		recorder := httptest.NewRecorder()
+		request, err := http.NewRequest("POST", "http://localhost:8080/register", bodyReader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request.RemoteAddr = "127.0.0.1:51789"
+
+		HttpAuthStartRegistrationProcess(testingCfg, store, db)(recorder, request)
+		if recorder.Code != http.StatusNoContent {
+			t.Errorf("Got %d, want %d", recorder.Code, http.StatusNoContent)
+		}
+
+		messages, err := mailpit.GetAllMessages()
+		if err != nil {
+			t.Fatalf("failed to get mailpit messages: %s", err.Error())
+		}
+
+		if len(messages) != 1 {
+			t.Errorf("Expected 1 message, got %d", len(messages))
+		} else {
+			messageSummary, err := mailpit.GetMessageSummary(messages[0].ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if strings.Contains(messageSummary.HTML, embed01) {
+				t.Errorf("Email is invalid.")
+			}
 		}
 	})
 }
