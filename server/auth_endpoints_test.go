@@ -54,6 +54,23 @@ func assertMailpitInboxIsEmpty(t *testing.T, mailpit *mailpitsuite.Api) {
 	}
 }
 
+func assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t *testing.T, regkeyStore *simplecache.Store, expectedEmail string, expectedCallback string) {
+	keys := regkeyStore.GetAllKeys()
+
+	if len(keys) != 1 {
+		t.Errorf("Expected one key, received: %d", len(keys))
+	}
+
+	value, err := regkeyStore.Get(keys[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if value != fmt.Sprintf("%s;%s", expectedEmail, expectedCallback) {
+		t.Errorf("Expected %s;%s, received %s", expectedEmail, expectedCallback, value)
+	}
+}
+
 func convertStructToJson(t *testing.T, obj interface{}) []byte {
 	result, err := json.Marshal(obj)
 
@@ -92,7 +109,7 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		store := simplecache.InitializeStore(ctx, time.Second)
+		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
 
@@ -420,13 +437,15 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		db := openDatabase(t)
 
-		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
+		reqBody := struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
 		}{
 			Email:    "new@user.local",
 			Callback: "http://localhost:8080",
-		}))
+		}
+
+		bodyReader := bytes.NewReader(convertStructToJson(t, reqBody))
 
 		recorder := httptest.NewRecorder()
 		request, err := http.NewRequest("POST", "http://localhost:8080/register", bodyReader)
@@ -448,16 +467,19 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		if len(messages) != 1 {
 			t.Errorf("Expected 1 message, got %d", len(messages))
-		} else {
-			messageSummary, err := mailpit.GetMessageSummary(messages[0].ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if !strings.Contains(messageSummary.HTML, embed01) {
-				t.Errorf("Email is invalid.")
-			}
+			t.FailNow()
 		}
+
+		messageSummary, err := mailpit.GetMessageSummary(messages[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !strings.Contains(messageSummary.HTML, embed01) {
+			t.Errorf("Email is invalid.")
+		}
+
+		assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
 	})
 
 	t.Run("returns 204 and sends registration email with warning about non-official site when everything is ok and callback is not from official site", func(t *testing.T) {
@@ -477,13 +499,15 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 		db := openDatabase(t)
 
-		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
+		reqBody := struct {
 			Email    string `json:"email"`
 			Callback string `json:"callback"`
 		}{
 			Email:    "new@user.local",
 			Callback: "http://officialinstance.local/callback",
-		}))
+		}
+
+		bodyReader := bytes.NewReader(convertStructToJson(t, reqBody))
 
 		recorder := httptest.NewRecorder()
 		request, err := http.NewRequest("POST", "http://localhost:8080/register", bodyReader)
@@ -514,6 +538,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			if strings.Contains(messageSummary.HTML, embed01) {
 				t.Errorf("Email is invalid.")
 			}
+
+			assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
 		}
 	})
 }
