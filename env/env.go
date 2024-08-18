@@ -42,88 +42,93 @@ func ReadToCfg(cfg interface{}) {
 			log.Fatalf("Field %s does not have an env tag.", fieldName)
 		}
 
+		envValue := os.Getenv(envName)
+		if envValue == "" {
+			log.Fatalf("env %s has not been set", envName)
+		}
+
 		switch fieldType {
 		case reflect.String:
-			field.SetString(os.Getenv(envName))
+			field.SetString(envValue)
 		case reflect.Int:
-			intVal, err := strconv.Atoi(os.Getenv(envName))
+			intVal, err := strconv.Atoi(envValue)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetInt(int64(intVal))
 		case reflect.Int8:
-			intVal, err := strconv.ParseInt(os.Getenv(envName), 10, 8)
+			intVal, err := strconv.ParseInt(envValue, 10, 8)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetInt(intVal)
 		case reflect.Int16:
-			intVal, err := strconv.ParseInt(os.Getenv(envName), 10, 16)
+			intVal, err := strconv.ParseInt(envValue, 10, 16)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetInt(intVal)
 		case reflect.Int32:
-			intVal, err := strconv.ParseInt(os.Getenv(envName), 10, 32)
+			intVal, err := strconv.ParseInt(envValue, 10, 32)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetInt(intVal)
 		case reflect.Int64:
-			intVal, err := strconv.ParseInt(os.Getenv(envName), 10, 64)
+			intVal, err := strconv.ParseInt(envValue, 10, 64)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetInt(intVal)
 		case reflect.Uint:
-			uintVal, err := strconv.ParseUint(os.Getenv(envName), 10, 32)
+			uintVal, err := strconv.ParseUint(envValue, 10, 32)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetUint(uintVal)
 		case reflect.Uint8:
-			uintVal, err := strconv.ParseUint(os.Getenv(envName), 10, 8)
+			uintVal, err := strconv.ParseUint(envValue, 10, 8)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetUint(uintVal)
 		case reflect.Uint16:
-			uintVal, err := strconv.ParseUint(os.Getenv(envName), 10, 16)
+			uintVal, err := strconv.ParseUint(envValue, 10, 16)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetUint(uintVal)
 		case reflect.Uint32:
-			uintVal, err := strconv.ParseUint(os.Getenv(envName), 10, 32)
+			uintVal, err := strconv.ParseUint(envValue, 10, 32)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetUint(uintVal)
 		case reflect.Uint64:
-			uintVal, err := strconv.ParseUint(os.Getenv(envName), 10, 64)
+			uintVal, err := strconv.ParseUint(envValue, 10, 64)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetUint(uintVal)
 		case reflect.Float32:
-			floatVal, err := strconv.ParseFloat(os.Getenv(envName), 32)
+			floatVal, err := strconv.ParseFloat(envValue, 32)
 			if err != nil {
 				panic(err)
 			}
 
 			field.SetFloat(floatVal)
 		case reflect.Float64:
-			floatVal, err := strconv.ParseFloat(os.Getenv(envName), 64)
+			floatVal, err := strconv.ParseFloat(envValue, 64)
 			if err != nil {
 				panic(err)
 			}
