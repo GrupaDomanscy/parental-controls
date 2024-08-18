@@ -22,7 +22,7 @@ type Model struct {
 //go:embed migration.sql
 var MigrationFile string
 
-func FindOneById(db *sql.DB, id int) (*Model, error) {
+func FindOneById(db *sql.Tx, id int) (*Model, error) {
 	row := db.QueryRow("SELECT id, email, created_at FROM users WHERE id = $1", id)
 
 	user := &Model{}
@@ -37,7 +37,7 @@ func FindOneById(db *sql.DB, id int) (*Model, error) {
 	return user, nil
 }
 
-func FindOneByEmail(db *sql.DB, email string) (*Model, error) {
+func FindOneByEmail(db *sql.Tx, email string) (*Model, error) {
 	row := db.QueryRow("SELECT * FROM users WHERE email = $1", email)
 
 	user := &Model{}
@@ -52,7 +52,7 @@ func FindOneByEmail(db *sql.DB, email string) (*Model, error) {
 	return user, nil
 }
 
-func GetAllByEmailSearch(db *sql.DB, emailPart string) ([]Model, error) {
+func GetAllByEmailSearch(db *sql.Tx, emailPart string) ([]Model, error) {
 	if len(emailPart) == 0 {
 		return []Model{}, nil
 	}
@@ -89,7 +89,7 @@ func GetAllByEmailSearch(db *sql.DB, emailPart string) ([]Model, error) {
 	return users, nil
 }
 
-func Create(db *sql.DB, email string) (int, error) {
+func Create(db *sql.Tx, email string) (int, error) {
 	if email == "" {
 		return 0, ErrEmailCannotBeEmpty
 	}
@@ -113,7 +113,7 @@ func Create(db *sql.DB, email string) (int, error) {
 
 var ErrUserWithThisIdDoesNotExist = errors.New("user with this id does not exist")
 
-func Update(db *sql.DB, id int, newEmail string) error {
+func Update(db *sql.Tx, id int, newEmail string) error {
 	executed, err := db.Exec("UPDATE users SET email = ? WHERE id = ?", newEmail, id)
 	if err != nil {
 		if err.Error() == "UNIQUE constraint failed: users.email" {

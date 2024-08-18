@@ -31,7 +31,20 @@ func TestFindOneByEmail(t *testing.T) {
 
 	t.Run("returns some user if user with provided email exists", func(t *testing.T) {
 		userModel := &Model{}
-		userModel, err = FindOneByEmail(db, "test@localhost.local")
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModel, err = FindOneByEmail(tx, "test@localhost.local")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -51,7 +64,20 @@ func TestFindOneByEmail(t *testing.T) {
 
 	t.Run("returns nil if user with provided email does not exist", func(t *testing.T) {
 		userModel := &Model{}
-		userModel, err = FindOneByEmail(db, "test@localhost.local2")
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModel, err = FindOneByEmail(tx, "test@localhost.local2")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -89,7 +115,20 @@ func TestFindOneById(t *testing.T) {
 
 	t.Run("returns some user if user with provided id exists", func(t *testing.T) {
 		userModel := &Model{}
-		userModel, err = FindOneById(db, int(id))
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModel, err = FindOneById(tx, int(id))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +148,20 @@ func TestFindOneById(t *testing.T) {
 
 	t.Run("returns nil if user with provided email does not exist", func(t *testing.T) {
 		userModel := &Model{}
-		userModel, err = FindOneById(db, int(id)+1)
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModel, err = FindOneById(tx, int(id)+1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +205,20 @@ func TestGetAllByEmailSearch(t *testing.T) {
 
 	t.Run("returns multiple results if query matches multiple rows", func(t *testing.T) {
 		var userModels []Model
-		userModels, err = GetAllByEmailSearch(db, "est")
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModels, err = GetAllByEmailSearch(tx, "est")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +240,20 @@ func TestGetAllByEmailSearch(t *testing.T) {
 
 	t.Run("returns nothing if query is empty", func(t *testing.T) {
 		var userModels []Model
-		userModels, err = GetAllByEmailSearch(db, "est")
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModels, err = GetAllByEmailSearch(tx, "est")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +265,20 @@ func TestGetAllByEmailSearch(t *testing.T) {
 
 	t.Run("returns empty array if query does not match any row", func(t *testing.T) {
 		var userModels []Model
-		userModels, err = GetAllByEmailSearch(db, "olijkhhasdjlksdjagasjkdhasdjhk")
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		userModels, err = GetAllByEmailSearch(tx, "olijkhhasdjlksdjagasjkdhasdjhk")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,7 +306,19 @@ func TestCreate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = Create(db, "")
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		_, err = Create(tx, "")
 		if !errors.Is(err, ErrEmailCannotBeEmpty) {
 			t.Fatal(err)
 		}
@@ -246,7 +349,19 @@ func TestCreate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		id, err := Create(db, userModel.Email)
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		id, err := Create(tx, userModel.Email)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -301,12 +416,24 @@ func TestCreate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = Create(db, userModel.Email)
+		tx, err := db.Begin()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		_, err = Create(db, userModel.Email)
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		_, err = Create(tx, userModel.Email)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = Create(tx, userModel.Email)
 		if !errors.Is(err, ErrUserWithGivenEmailAlreadyExists) {
 			t.Errorf("Expected ErrUserWithGivenEmailAlreadyExists, received: %v", err)
 		}
@@ -340,14 +467,26 @@ func TestUpdate(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
 		// Insert a user to update
-		id, err := Create(db, "oldemail@domain.com")
+		id, err := Create(tx, "oldemail@domain.com")
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		newEmail := "newemail@domain.com"
-		err = Update(db, id, newEmail)
+		err = Update(tx, id, newEmail)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -378,8 +517,20 @@ func TestUpdate(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
 		nonExistentId := 9999
-		err = Update(db, nonExistentId, "email@domain.com")
+		err = Update(tx, nonExistentId, "email@domain.com")
 		if !errors.Is(err, ErrUserWithThisIdDoesNotExist) {
 			t.Errorf("Expected ErrUserWithThisIdDoesNotExist, received: %v", err)
 		}
@@ -398,19 +549,31 @@ func TestUpdate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Create two users
-		_, err = Create(db, "user1@domain.com")
+		tx, err := db.Begin()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		id2, err := Create(db, "user2@domain.com")
+		defer func() {
+			err = tx.Commit()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		// Create two users
+		_, err = Create(tx, "user1@domain.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		id2, err := Create(tx, "user2@domain.com")
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Try updating the second user with an email that already exists
-		err = Update(db, id2, "user1@domain.com")
+		err = Update(tx, id2, "user1@domain.com")
 		if !errors.Is(err, ErrUserWithGivenEmailAlreadyExists) {
 			t.Errorf("Expected ErrUserWithGivenEmailAlreadyExists, received: %v", err)
 		}
