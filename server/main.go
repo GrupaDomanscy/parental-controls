@@ -6,7 +6,7 @@ import (
 	"domanscy.group/env"
 	"domanscy.group/parental-controls/server/database"
 	"domanscy.group/parental-controls/server/users"
-	"domanscy.group/simplecache"
+	"domanscy.group/rckstrvcache"
 	"fmt"
 	"github.com/go-chi/chi"
 	_ "github.com/mattn/go-sqlite3"
@@ -27,7 +27,7 @@ type ServerConfig struct {
 	DatabaseUrl string `env:"DATABASE_URL"`
 }
 
-func NewServer(cfg ServerConfig, regkeysStore *simplecache.Store, oneTimeAccessTokenStore *simplecache.Store, db *sql.DB) http.Handler {
+func NewServer(cfg ServerConfig, regkeysStore *rckstrvcache.Store, oneTimeAccessTokenStore *rckstrvcache.Store, db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
 	r.Post("/login", HttpAuthLogin(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
@@ -43,8 +43,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	regkeysStore := simplecache.InitializeStore(ctx, time.Minute*15)
-	oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+	regkeysStore := rckstrvcache.InitializeStore(ctx, time.Minute*15)
+	oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 	cfg := ServerConfig{}
 	env.ReadToCfg(&cfg)

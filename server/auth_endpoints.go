@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"domanscy.group/parental-controls/server/users"
-	"domanscy.group/simplecache"
+	"domanscy.group/rckstrvcache"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -18,7 +18,7 @@ import (
 
 var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does not exist")
 
-func HttpAuthLogin(cfg *ServerConfig, _ *simplecache.Store, _ *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -139,7 +139,7 @@ var startRegistrationProcessEmailTemplate = template.Must(template.New("email_te
 
 var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
 
-func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecache.Store, _ *simplecache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvcache.Store, _ *rckstrvcache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type RequestBody struct {
 			Email    string `json:"email"`
@@ -261,7 +261,7 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *simplecac
 var ErrRegistrationKeyCannotBeEmpty = errors.New("registration key can not be empty")
 var ErrInvalidRegistrationKey = errors.New("invalid registration key")
 
-func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *simplecache.Store, oneTimeAccessTokenStore *simplecache.Store, db *sql.DB) http.HandlerFunc {
+func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcache.Store, oneTimeAccessTokenStore *rckstrvcache.Store, db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		regkey := chi.URLParam(r, "regkey")
 		if regkey == "" {

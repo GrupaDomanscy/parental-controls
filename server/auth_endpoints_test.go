@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"domanscy.group/parental-controls/server/database"
 	"domanscy.group/parental-controls/server/users"
-	"domanscy.group/simplecache"
+	"domanscy.group/rckstrvcache"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -57,7 +57,7 @@ func assertMailpitInboxIsEmpty(t *testing.T, mailpit *mailpitsuite.Api) {
 	}
 }
 
-func assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t *testing.T, regkeyStore *simplecache.Store, expectedEmail string, expectedCallback string) {
+func assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t *testing.T, regkeyStore *rckstrvcache.Store, expectedEmail string, expectedCallback string) {
 	keys := regkeyStore.GetAllKeys()
 
 	if len(keys) != 1 {
@@ -112,8 +112,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 
@@ -160,8 +160,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -212,8 +212,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
 			err := db.Close()
@@ -264,8 +264,8 @@ func TestHttpAuthLogin(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -324,8 +324,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -376,8 +376,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -428,8 +428,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -506,8 +506,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -575,8 +575,8 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -640,8 +640,8 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Minute)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		value, err := regkeyStore.PutAndGenerateRandomKeyForValue("new@user.local;http://officialinstance.local/callback")
 		if err != nil {
@@ -726,8 +726,8 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		regkeyStore := simplecache.InitializeStore(ctx, time.Minute)
-		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
+		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 		value, err := regkeyStore.PutAndGenerateRandomKeyForValue("new@user.local;http://officialinstance.local/callback")
 		if err != nil {

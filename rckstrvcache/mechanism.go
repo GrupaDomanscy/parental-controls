@@ -1,4 +1,4 @@
-package simplecache
+package rckstrvcache
 
 import (
 	"context"
