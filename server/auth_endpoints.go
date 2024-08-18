@@ -91,3 +91,83 @@ func HttpAuthLogin(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r 
 		w.WriteHeader(204)
 	}
 }
+
+var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
+
+func HttpAuthStartRegistrationProcess(cfg *ServerConfig, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type RequestBody struct {
+			Email    string `json:"email"`
+			Callback string `json:"callback"`
+		}
+
+		var requestBody RequestBody
+
+		if err := decodeJsonRequestBodyAndSendHttpErrorIfInvalid(w, r, &requestBody); err != nil {
+			return
+		}
+
+		if err := parseEmailAddressAndHandleErrorIfInvalid(w, r, requestBody.Email); err != nil {
+			return
+		}
+
+		if err := parseUrlAndHandleErrorIfInvalid(w, r, requestBody.Callback); err != nil {
+			return
+		}
+
+		user, err := users.FindOneByEmail(db, requestBody.Email)
+		if err != nil {
+			respondWith500(w, r, "")
+			log.Printf("error occured while trying to find user by email: %v", err)
+			return
+		}
+
+		if user != nil {
+			respondWith400(w, r, ErrUserWithGivenEmailAlreadyExists.Error())
+			return
+		}
+
+		var message strings.Builder
+
+		message.WriteString(fmt.Sprintf("From: %s\r\n", cfg.EmailFromAddress))
+		message.WriteString(fmt.Sprintf("To: %s\r\n", requestBody.Email))
+		message.WriteString(fmt.Sprintf("Subject: %s\r\n", "Zaloguj się"))
+		message.WriteString(fmt.Sprintf("\r\n"))
+		message.WriteString(fmt.Sprintf("Hello world!\r\n"))
+
+		var mailBody strings.Builder
+
+		mailBody.WriteString("Witaj w systemie kontroli rodzicielskiej!<br />")
+		mailBody.WriteString(fmt.Sprintf("Jeżeli chcesz się zarejestrować, kliknij przycisk poniżej. Jeżeli to nie ty się rejestrowałeś, zignoruj tego maila, ktoś najwyraźniej się pomylił.<br />"))
+		mailBody.WriteString(fmt.Sprintf("<br />"))
+
+		ip, err := getIPAddressFromRequest(w, r)
+		if err != nil {
+			log.Println(err)
+			respondWith400(w, r, err.Error())
+			return
+		}
+
+		mailBody.WriteString(fmt.Sprintf("Adres IP prośby: %s<br />", ip))
+
+		mailBody.WriteString(fmt.Sprintf("<br />"))
+
+		mailBody.WriteString(fmt.Sprintf("<a href=\"#\">Zarejestruj</a>"))
+
+		err = sendMailAndHandleError(
+			w, r,
+			cfg.SmtpAddress,
+			cfg.SmtpPort,
+			cfg.EmailFromAddress,
+			requestBody.Email,
+			"Potwierdź rejestracje w kontroli rodzicielskiej",
+			mailBody.String(),
+		)
+		if err != nil {
+			respondWith500(w, r, "")
+			return
+		}
+
+		w.WriteHeader(204)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
 	"net/http"
 )
 
@@ -24,6 +25,7 @@ func NewServer(cfg ServerConfig, db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
 	r.Post("/login", HttpAuthLogin(&cfg, db))
+	r.Post("/register", HttpAuthStartRegistrationProcess(&cfg, db))
 
 	return r
 }
@@ -37,7 +39,12 @@ func main() {
 		panic(err)
 	}
 
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(db)
 
 	handler := NewServer(cfg, db)
 
