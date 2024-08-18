@@ -6,7 +6,6 @@ import (
 	"domanscy.group/parental-controls/server/database"
 	"domanscy.group/parental-controls/server/users"
 	"encoding/json"
-	"log"
 	"mailpitsuite"
 	"net/http"
 	"net/http/httptest"
@@ -78,7 +77,12 @@ func TestHttpAuthLogin(t *testing.T) {
 	t.Run("returns 400 if json payload is invalid", func(t *testing.T) {
 		t.Parallel()
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
-		defer mailpit.Close()
+		defer func(mailpit *mailpitsuite.Api) {
+			err := mailpit.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mailpit)
 
 		db := openDatabase(t)
 
@@ -108,7 +112,12 @@ func TestHttpAuthLogin(t *testing.T) {
 	t.Run("returns 400 if email is invalid", func(t *testing.T) {
 		t.Parallel()
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
-		defer mailpit.Close()
+		defer func(mailpit *mailpitsuite.Api) {
+			err := mailpit.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mailpit)
 
 		db := openDatabase(t)
 
@@ -143,7 +152,12 @@ func TestHttpAuthLogin(t *testing.T) {
 	t.Run("returns 400 if callback is invalid", func(t *testing.T) {
 		t.Parallel()
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
-		defer mailpit.Close()
+		defer func(mailpit *mailpitsuite.Api) {
+			err := mailpit.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mailpit)
 
 		db := openDatabase(t)
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
@@ -178,7 +192,12 @@ func TestHttpAuthLogin(t *testing.T) {
 	t.Run("returns ErrUserWithGivenEmailDoesNotExist when user with given email does not exist", func(t *testing.T) {
 		t.Parallel()
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
-		defer mailpit.Close()
+		defer func(mailpit *mailpitsuite.Api) {
+			err := mailpit.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mailpit)
 
 		db := openDatabase(t)
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
@@ -220,7 +239,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		defer func(mailpit *mailpitsuite.Api) {
 			err := mailpit.Close()
 			if err != nil {
-				log.Println(err)
+				t.Fatal(err)
 			}
 		}(mailpit)
 
@@ -259,7 +278,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		defer func(mailpit *mailpitsuite.Api) {
 			err := mailpit.Close()
 			if err != nil {
-				log.Println(err)
+				t.Fatal(err)
 			}
 		}(mailpit)
 
@@ -298,7 +317,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		defer func(mailpit *mailpitsuite.Api) {
 			err := mailpit.Close()
 			if err != nil {
-				log.Println(err)
+				t.Fatal(err)
 			}
 		}(mailpit)
 
@@ -343,7 +362,7 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		defer func(mailpit *mailpitsuite.Api) {
 			err := mailpit.Close()
 			if err != nil {
-				log.Println(err)
+				t.Fatal(err)
 			}
 		}(mailpit)
 
