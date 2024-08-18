@@ -110,8 +110,16 @@ func TestHttpAuthLogin(t *testing.T) {
 		defer cancel()
 
 		regkeyStore := simplecache.InitializeStore(ctx, time.Second)
+		oneTimeAccessTokenStore := simplecache.InitializeStore(ctx, time.Minute)
 
 		db := openDatabase(t)
+
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		bodyReader := strings.NewReader("notavalidjson")
 
@@ -152,6 +160,12 @@ func TestHttpAuthLogin(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
@@ -197,6 +211,12 @@ func TestHttpAuthLogin(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
@@ -243,6 +263,12 @@ func TestHttpAuthLogin(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
@@ -296,6 +322,12 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
@@ -341,6 +373,12 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		bodyReader := bytes.NewReader(convertStructToJson(t, struct {
 			Email    string `json:"email"`
@@ -386,6 +424,12 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		_, err := users.Create(db, "existing@user.local")
 		if err != nil {
@@ -436,6 +480,12 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		reqBody := struct {
 			Email    string `json:"email"`
@@ -498,6 +548,12 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		store := simplecache.InitializeStore(ctx, time.Second)
 
 		db := openDatabase(t)
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(db)
 
 		reqBody := struct {
 			Email    string `json:"email"`
