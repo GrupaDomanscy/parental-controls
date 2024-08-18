@@ -14,7 +14,7 @@ var ErrInvalidJsonPayload = errors.New("Invalid json payload")
 var ErrInvalidEmail = errors.New("Invalid email")
 var ErrInvalidCallbackUrl = errors.New("Invalid callback url")
 
-func respondWith400(w http.ResponseWriter, r *http.Request, message string) {
+func respondWith400(w http.ResponseWriter, _ *http.Request, message string) {
 	if message == "" {
 		message = "Bad Request"
 	}
@@ -78,7 +78,7 @@ func respondWith500(w http.ResponseWriter, _ *http.Request, message string) {
 	}
 }
 
-func getIPAddressFromRequest(w http.ResponseWriter, req *http.Request) (string, error) {
+func getIPAddressFromRequest(_ http.ResponseWriter, req *http.Request) (string, error) {
 	forward := req.Header.Get("X-Forwarded-For")
 	ip, _, err := net.SplitHostPort(forward)
 	if err == nil {

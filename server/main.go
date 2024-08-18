@@ -55,9 +55,12 @@ func main() {
 		panic(err)
 	}
 
-	database.Migrate(db, map[string]string{
+	err = database.Migrate(db, map[string]string{
 		"0001_users": users.MigrationFile,
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	defer func(db *sql.DB) {
 		err := db.Close()
