@@ -57,7 +57,13 @@ func (store *Store) deleteRoutine(errCh chan<- error) {
 	}
 }
 
+var ErrTTLCannotBeShorterThan1Sec = errors.New("ttl can not be shorter than 1 second")
+
 func InitializeStore(ttl time.Duration) (*Store, <-chan error, error) {
+	if ttl.Milliseconds() < 1000 {
+		return nil, nil, ErrTTLCannotBeShorterThan1Sec
+	}
+
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
 	file, err := os.CreateTemp("", "rckstrvcache")

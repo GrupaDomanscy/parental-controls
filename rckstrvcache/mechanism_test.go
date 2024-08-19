@@ -82,7 +82,7 @@ func TestGenerateNewRegkeyForEmail(t *testing.T) {
 	})
 
 	t.Run("delete goroutine is working properly", func(t *testing.T) {
-		ttl := time.Millisecond * 100
+		ttl := time.Millisecond * 1000
 		store, errCh, err := InitializeStore(ttl)
 		if err != nil {
 			t.Fatalf("failed to initialize store: %v", err)
@@ -135,7 +135,7 @@ func TestGenerateNewRegkeyForEmail(t *testing.T) {
 	})
 
 	t.Run("in transaction reverts tx on error", func(t *testing.T) {
-		store, errCh, err := InitializeStore(time.Millisecond * 100)
+		store, errCh, err := InitializeStore(time.Millisecond * 1000)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,12 +156,14 @@ func TestGenerateNewRegkeyForEmail(t *testing.T) {
 			return errors.New("some error")
 		})
 		if err != nil {
-			t.Fatal(err)
+			if err.Error() != "some error" {
+				t.Fatal(err)
+			}
 		}
 
 		_, exists, err := store.Get("helloworld")
 		if err != nil {
-			return
+			t.Fatal(err)
 		}
 
 		if exists {
@@ -177,7 +179,7 @@ func TestGenerateNewRegkeyForEmail(t *testing.T) {
 	})
 
 	t.Run("in transaction commits data on nil", func(t *testing.T) {
-		store, errCh, err := InitializeStore(time.Millisecond * 100)
+		store, errCh, err := InitializeStore(time.Millisecond * 1000)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +207,7 @@ func TestGenerateNewRegkeyForEmail(t *testing.T) {
 
 		_, exists, err := store.Get(key)
 		if err != nil {
-			return
+			t.Fatal(err)
 		}
 
 		if !exists {
@@ -217,6 +219,20 @@ func TestGenerateNewRegkeyForEmail(t *testing.T) {
 			t.Fatal(err)
 		default:
 			//nothing
+		}
+	})
+
+	t.Run("returns ErrTTLCannotBeShorterThan1Sec if ttl is shorter than 1 sec", func(t *testing.T) {
+		_, _, err := InitializeStore(999)
+		if err == nil {
+			t.Fatal(err)
+		} else if !errors.Is(err, ErrTTLCannotBeShorterThan1Sec) {
+			t.Errorf("Expected %s, received: %v", ErrTTLCannotBeShorterThan1Sec, err)
+		}
+
+		_, _, err = InitializeStore(time.Millisecond * 1000)
+		if err != nil {
+			t.Errorf("Expected nil, received: %v", err)
 		}
 	})
 }
