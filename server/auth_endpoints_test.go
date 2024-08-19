@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi"
+	"log"
 	"mailpitsuite"
 	"net/http"
 	"net/http/httptest"
@@ -58,15 +59,22 @@ func assertMailpitInboxIsEmpty(t *testing.T, mailpit *mailpitsuite.Api) {
 }
 
 func assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t *testing.T, regkeyStore *rckstrvcache.Store, expectedEmail string, expectedCallback string) {
-	keys := regkeyStore.GetAllKeys()
+	keys, err := regkeyStore.GetAllKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(keys) != 1 {
 		t.Errorf("Expected one key, received: %d", len(keys))
 	}
 
-	value, err := regkeyStore.Get(keys[0])
+	value, exists, err := regkeyStore.Get(keys[0])
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if !exists {
+		t.Errorf("expected regkey to exist")
 	}
 
 	if value != fmt.Sprintf("%s;%s", expectedEmail, expectedCallback) {
@@ -109,11 +117,21 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 
@@ -145,6 +163,14 @@ func TestHttpAuthLogin(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 400 if email is invalid", func(t *testing.T) {
@@ -157,11 +183,21 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -197,6 +233,14 @@ func TestHttpAuthLogin(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 400 if callback is invalid", func(t *testing.T) {
@@ -209,11 +253,22 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
+
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
 			err := db.Close()
@@ -249,6 +304,14 @@ func TestHttpAuthLogin(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns ErrUserWithGivenEmailDoesNotExist when user with given email does not exist", func(t *testing.T) {
@@ -261,11 +324,21 @@ func TestHttpAuthLogin(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -302,6 +375,14 @@ func TestHttpAuthLogin(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 }
 
@@ -321,11 +402,21 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -361,10 +452,19 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 400 with ErrInvalidEmail when email is invalid", func(t *testing.T) {
 		t.Parallel()
+
 		mailpit := initializeMailpitAndDeleteAllMessages(t)
 		defer func(mailpit *mailpitsuite.Api) {
 			err := mailpit.Close()
@@ -373,11 +473,21 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -413,6 +523,14 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 400 with ErrUserWithGivenEmailAlreadyExists when user with given email already exists", func(t *testing.T) {
@@ -425,11 +543,21 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -491,6 +619,14 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		}
 
 		assertMailpitInboxIsEmpty(t, mailpit)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 204, sends registration email without non-official site warning and puts correct value in regkey cache when everything is ok", func(t *testing.T) {
@@ -503,11 +639,21 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -560,6 +706,14 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 		}
 
 		assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 204 and sends registration email with warning about non-official site when everything is ok and callback is not from official site", func(t *testing.T) {
@@ -572,11 +726,21 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			}
 		}(mailpit)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Second)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
 		db := openDatabase(t)
 		defer func(db *sql.DB) {
@@ -628,6 +792,14 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 
 			assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
 		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 }
 
@@ -637,13 +809,23 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 	t.Run("generates one time access token, redirects to callback url with generated access token and creates the user when everything is ok", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Minute)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
-		value, err := regkeyStore.PutAndGenerateRandomKeyForValue("new@user.local;http://officialinstance.local/callback")
+		value, err := regkeyStore.Put("new@user.local;http://officialinstance.local/callback")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -673,7 +855,11 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 			t.Errorf("Got %d, want %d, response body: %s", recorder.Code, http.StatusTemporaryRedirect, recorder.Body.String())
 		}
 
-		keys := oneTimeAccessTokenStore.GetAllKeys()
+		keys, err := oneTimeAccessTokenStore.GetAllKeys()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		if len(keys) != 1 {
 			t.Errorf("Expected 1 key in store, received: %d", len(keys))
 		}
@@ -710,26 +896,48 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		payload, err := oneTimeAccessTokenStore.Get(keys[0])
+		payload, exists, err := oneTimeAccessTokenStore.Get(keys[0])
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		if !exists {
+			t.Errorf("expected one time access token to exist in cache")
+		}
+
 		if payload != fmt.Sprintf("userId:%d", user.Id) {
 			t.Errorf("Expected payload to be: %s, received %s", fmt.Sprintf("userId:%d", user.Id), payload)
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
 		}
 	})
 
 	t.Run("disables already used regkey and returns 400 if user tries to use it", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 
-		regkeyStore := rckstrvcache.InitializeStore(ctx, time.Minute)
-		oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
+		defer func(regkeyStore *rckstrvcache.Store) {
+			err := regkeyStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(regkeyStore)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+			err := oneTimeAccessTokenStore.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(oneTimeAccessTokenStore)
 
-		value, err := regkeyStore.PutAndGenerateRandomKeyForValue("new@user.local;http://officialinstance.local/callback")
+		value, err := regkeyStore.Put("new@user.local;http://officialinstance.local/callback")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -769,6 +977,14 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 
 		if responseBody != ErrInvalidRegistrationKey.Error() {
 			t.Errorf("Expected %s, received %s", ErrInvalidRegistrationKey.Error(), responseBody)
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
 		}
 	})
 }

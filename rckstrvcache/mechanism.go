@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
-	"log"
 	"os"
 	"time"
 )
@@ -32,14 +31,14 @@ func (store *Store) deleteRoutine(errCh chan<- error) {
 		select {
 		case <-store.ctx.Done():
 			return
-		case <-time.After(time.Millisecond * 10): // dear god, don't kill that database. 10 millisecs is minimum
+		case <-time.After(time.Millisecond * 1000): // dear god, don't kill that database. 1 sec is minimum
 			tx, err := store.db.BeginTx(store.ctx, nil)
 			if err != nil {
 				errCh <- errors.Join(err, fmt.Errorf("an error occured while trying to open the transaction: %w", err))
 				return
 			}
 
-			exec, err := tx.Exec("DELETE FROM data WHERE delete_at < ?", time.Now().UnixMilli())
+			_, err = tx.Exec("DELETE FROM data WHERE delete_at < ?", time.Now().UnixMilli())
 			if err != nil {
 				rollbackErr := tx.Rollback()
 				if rollbackErr != nil {
@@ -49,10 +48,6 @@ func (store *Store) deleteRoutine(errCh chan<- error) {
 				errCh <- err
 				return
 			}
-
-			rows, _ := exec.RowsAffected()
-
-			log.Printf("Affected %d rows", rows)
 
 			err = tx.Commit()
 			if err != nil {
@@ -122,6 +117,28 @@ func (store *Store) Close() error {
 	} else {
 		return nil
 	}
+}
+
+func (store *Store) GetAllKeys() ([]string, error) {
+	rows, err := store.db.Query("SELECT `key` FROM data")
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0)
+
+	for rows.Next() {
+		var key string
+
+		err := rows.Scan(&key)
+		if err != nil {
+			return nil, err
+		}
+
+		keys = append(keys, key)
+	}
+
+	return keys, nil
 }
 
 func (store *Store) Get(key string) (value string, exists bool, err error) {
