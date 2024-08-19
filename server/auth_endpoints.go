@@ -168,18 +168,11 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvca
 			return
 		}
 
-		defer func(tx *sql.Tx) {
-			err := tx.Commit()
-			if err != nil {
-				log.Printf("failed to commit the transaction: %v", err)
-			}
-		}(tx)
-
 		user, err := users.FindOneByEmail(tx, requestBody.Email)
 		if err != nil {
 			txErr := tx.Rollback()
 			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
+				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
 			}
 
 			respondWith500(w, r, "")
@@ -190,68 +183,62 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvca
 		if user != nil {
 			txErr := tx.Rollback()
 			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
+				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
 			}
 
 			respondWith400(w, r, ErrUserWithGivenEmailAlreadyExists.Error())
 			return
 		}
 
-		regkey, err := regkeysStore.PutAndGenerateRandomKeyForValue(requestBody.Email + ";" + callbackUrl.String())
-		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
+		err = regkeysStore.InTransaction(func(regkeysTx rckstrvcache.StoreCompatible) error {
+			regkey, err := regkeysStore.Put(requestBody.Email + ";" + callbackUrl.String())
+			if err != nil {
+				return fmt.Errorf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
 			}
 
-			respondWith500(w, r, "")
-			log.Printf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
-			return
-		}
+			emailBody := bytes.NewBuffer([]byte{})
+			err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
+				InstanceAddr       string
+				IsOfficialInstance bool
+				Link               string
+			}{
+				InstanceAddr:       callbackUrl.Host,
+				IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
+				Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to construct email template: %w", err)
+			}
 
-		emailBody := bytes.NewBuffer([]byte{})
-		err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
-			InstanceAddr       string
-			IsOfficialInstance bool
-			Link               string
-		}{
-			InstanceAddr:       callbackUrl.Host,
-			IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
-			Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
+			err = sendMailAndHandleError(
+				w, r,
+				cfg.SmtpAddress,
+				cfg.SmtpPort,
+				cfg.EmailFromAddress,
+				requestBody.Email,
+				"Potwierdź rejestracje w kontroli rodzicielskiej",
+				emailBody.String(),
+			)
+			if err != nil {
+				return fmt.Errorf("failed to send mail: %w", err)
+			}
+
+			return nil
 		})
 		if err != nil {
-			regkeysStore.Delete(regkey)
-
 			txErr := tx.Rollback()
 			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
+				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
 			}
 
 			respondWith500(w, r, "")
-			log.Printf("an error occured while trying to generate email body: %v", err)
+			log.Println(err)
 			return
 		}
 
-		err = sendMailAndHandleError(
-			w, r,
-			cfg.SmtpAddress,
-			cfg.SmtpPort,
-			cfg.EmailFromAddress,
-			requestBody.Email,
-			"Potwierdź rejestracje w kontroli rodzicielskiej",
-			emailBody.String(),
-		)
+		err = tx.Commit()
 		if err != nil {
-			regkeysStore.Delete(regkey)
-
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
-			log.Printf("an error occured while trying to send mail: %v", err)
-			respondWith500(w, r, "")
-			return
+			log.Printf("failed to commit the transaction: %v", err)
 		}
 
 		w.WriteHeader(204)
