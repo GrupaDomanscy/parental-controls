@@ -361,6 +361,7 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 				return
 			}
 
+			log.Println(err)
 			respondWith500(w, r, "")
 			return
 		}
