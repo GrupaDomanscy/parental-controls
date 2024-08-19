@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"domanscy.group/env"
 	"domanscy.group/parental-controls/server/database"
@@ -37,14 +36,17 @@ func NewServer(cfg ServerConfig, regkeysStore *rckstrvcache.Store, oneTimeAccess
 	return r
 }
 
+func startServer(cfg ServerConfig, regkeysStore *rckstrvcache.Store, otatStore *rckstrvcache.Store, db *sql.DB, errCh chan<- error) {
+	handler := NewServer(cfg, regkeysStore, otatStore, db)
+
+	err := http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.ServerAddress, cfg.ServerPort), handler)
+	if err != nil {
+		errCh <- err
+	}
+}
+
 func main() {
 	log.SetFlags(log.Ldate | log.LUTC | log.Lmicroseconds | log.Llongfile)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	regkeysStore := rckstrvcache.InitializeStore(ctx, time.Minute*15)
-	oneTimeAccessTokenStore := rckstrvcache.InitializeStore(ctx, time.Minute)
 
 	cfg := ServerConfig{}
 	env.ReadToCfg(&cfg)
@@ -54,16 +56,33 @@ func main() {
 		cfg.AppUrl = cfg.AppUrl[:len(cfg.AppUrl)-1]
 	}
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseUrl)
+	regkeysStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Minute * 15)
 	if err != nil {
-		panic(err)
+		log.Fatalf("fatal error occured while trying to initialize regkey store: %v", err)
 	}
 
-	err = database.Migrate(db, map[string]string{
-		"0001_users": users.MigrationFile,
-	})
+	defer func(regkeysStore *rckstrvcache.Store) {
+		err := regkeysStore.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(regkeysStore)
+
+	oneTimeAccessTokenStore, oneTimeAccessTokenErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 	if err != nil {
-		panic(err)
+		log.Fatalf("fatal error occured while trying to initialize one time access token store: %v", err)
+	}
+
+	defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
+		err := oneTimeAccessTokenStore.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(oneTimeAccessTokenStore)
+
+	db, err := sql.Open("sqlite3", cfg.DatabaseUrl)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	defer func(db *sql.DB) {
@@ -73,10 +92,27 @@ func main() {
 		}
 	}(db)
 
-	handler := NewServer(cfg, regkeysStore, oneTimeAccessTokenStore, db)
-
-	err = http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.ServerAddress, cfg.ServerPort), handler)
+	err = database.Migrate(db, map[string]string{
+		"0001_users": users.MigrationFile,
+	})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+
+	httpServerErrCh := make(chan error)
+
+	go startServer(cfg, regkeysStore, oneTimeAccessTokenStore, db, httpServerErrCh)
+
+	for {
+		select {
+		case err = <-httpServerErrCh:
+			log.Fatalf("Error from http server: %v", err)
+		case err = <-oneTimeAccessTokenErrCh:
+			log.Fatalf("Error from one time access token store: %v", err)
+		case err = <-regkeyErrCh:
+			log.Fatalf("Error from regkey store: %v", err)
+		default:
+			// nothing
+		}
 	}
 }
