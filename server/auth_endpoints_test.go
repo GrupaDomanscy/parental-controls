@@ -9,6 +9,7 @@ import (
 	"domanscy.group/rckstrvcache"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/go-chi/chi"
 	"log"
@@ -884,14 +885,17 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		defer func() {
-			err = tx.Commit()
-			if err != nil {
-				t.Fatal(err)
-			}
-		}()
-
 		user, err := users.FindOneByEmail(tx, "new@user.local")
+		if err != nil {
+			txErr := tx.Rollback()
+			if txErr != nil {
+				err = errors.Join(err, txErr)
+			}
+
+			t.Fatal(err)
+		}
+
+		err = tx.Commit()
 		if err != nil {
 			t.Fatal(err)
 		}

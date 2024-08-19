@@ -197,11 +197,10 @@ func (store *Store) InTransaction(callback InTransactionCallback) (err error) {
 		txErr := tx.Rollback()
 		if txErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to rollback transaction: %v", err))
-			return
 		}
+
+		return
 	}
 
-	err = tx.Commit()
-
-	return nil
+	return tx.Commit()
 }

@@ -191,7 +191,7 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvca
 		}
 
 		err = regkeysStore.InTransaction(func(regkeysTx rckstrvcache.StoreCompatible) error {
-			regkey, err := regkeysStore.Put(requestBody.Email + ";" + callbackUrl.String())
+			regkey, err := regkeysTx.Put(requestBody.Email + ";" + callbackUrl.String())
 			if err != nil {
 				return fmt.Errorf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
 			}
@@ -239,6 +239,8 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvca
 		err = tx.Commit()
 		if err != nil {
 			log.Printf("failed to commit the transaction: %v", err)
+			respondWith500(w, r, "")
+			return
 		}
 
 		w.WriteHeader(204)
@@ -264,8 +266,8 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 
 		var callbackUrl *url.URL
 
-		err = regkeyStore.InTransaction(func(regkeyTx rckstrvcache.StoreCompatible) error {
-			cachePayload, exists, err := regkeyTx.Get(regkey)
+		err = regkeyStore.InTransaction(func(regkeyStore rckstrvcache.StoreCompatible) error {
+			cachePayload, exists, err := regkeyStore.Get(regkey)
 			if err != nil {
 				return fmt.Errorf("error occured while trying to get information about regkey from database: %w", err)
 			}
@@ -300,8 +302,8 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 				return fmt.Errorf("error occured while trying to create user in db: %v", err)
 			}
 
-			err = oneTimeAccessTokenStore.InTransaction(func(otatTx rckstrvcache.StoreCompatible) error {
-				oneTimeAccessToken, err := otatTx.Put(fmt.Sprintf("userId:%d", userId))
+			err = oneTimeAccessTokenStore.InTransaction(func(oneTimeAccessTokenStore rckstrvcache.StoreCompatible) error {
+				oneTimeAccessToken, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
 				if err != nil {
 					return err
 				}
