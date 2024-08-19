@@ -341,6 +341,15 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 				return nil
 			})
 			if err != nil {
+				txErr := tx.Rollback()
+				if txErr != nil {
+					err = errors.Join(err, txErr)
+				}
+				return err
+			}
+
+			err = tx.Commit()
+			if err != nil {
 				return err
 			}
 
