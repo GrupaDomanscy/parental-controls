@@ -275,86 +275,88 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 			return
 		}
 
-		cachePayload, err := regkeyStore.Get(regkey)
-		if err != nil {
-			respondWith400(w, r, ErrInvalidRegistrationKey.Error())
-			return
-		}
+		var callbackUrl *url.URL
 
-		splittedCachePayload := strings.Split(cachePayload, ";")
-		if len(splittedCachePayload) != 2 {
-			respondWith500(w, r, "")
-			log.Printf("Expected two strings in the array after splitting the payload from cache, but received: %v", len(splittedCachePayload))
-			return
-		}
-
-		emailAddress := splittedCachePayload[0]
-		callbackUrl, err := url.Parse(splittedCachePayload[1])
-		if err != nil {
-			respondWith500(w, r, "")
-			log.Printf("failed to parse callback url: %v", callbackUrl)
-		}
-
-		tx, err := db.BeginTx(r.Context(), nil)
-		if err != nil {
-			respondWith500(w, r, "")
-			log.Println(err)
-			return
-		}
-
-		defer func() {
-			err = tx.Commit()
+		err = regkeyStore.InTransaction(func(regkeyTx rckstrvcache.StoreCompatible) error {
+			cachePayload, exists, err := regkeyTx.Get(regkey)
 			if err != nil {
-				log.Printf("error occured while trying to commit transaction: %v", err)
+				return fmt.Errorf("error occured while trying to get information about regkey from database: %w", err)
 			}
-		}()
 
-		userId, err := users.Create(tx, emailAddress)
+			if !exists {
+				return ErrInvalidRegistrationKey
+			}
+
+			splittedCachePayload := strings.Split(cachePayload, ";")
+			if len(splittedCachePayload) != 2 {
+				return fmt.Errorf("expected two strings in the array after splitting the payload from cache, but received: %v", len(splittedCachePayload))
+			}
+
+			emailAddress := splittedCachePayload[0]
+			callbackUrl, err = url.Parse(splittedCachePayload[1])
+			if err != nil {
+				return fmt.Errorf("failed to parse callback url: %v", callbackUrl)
+			}
+
+			tx, err := db.BeginTx(r.Context(), nil)
+			if err != nil {
+				return fmt.Errorf("failed to open database transaction: %w", err)
+			}
+
+			userId, err := users.Create(tx, emailAddress)
+			if err != nil {
+				txErr := tx.Rollback()
+				if txErr != nil {
+					err = errors.Join(err, txErr)
+				}
+
+				return fmt.Errorf("error occured while trying to create user in db: %v", err)
+			}
+
+			err = oneTimeAccessTokenStore.InTransaction(func(otatTx rckstrvcache.StoreCompatible) error {
+				oneTimeAccessToken, err := otatTx.Put(fmt.Sprintf("userId:%d", userId))
+				if err != nil {
+					return err
+				}
+
+				if err != nil {
+					txErr := tx.Rollback()
+					if txErr != nil {
+						err = errors.Join(err, txErr)
+					}
+
+					return fmt.Errorf("error occured while trying to generate random access token: %w", err)
+				}
+
+				queryParams := callbackUrl.Query()
+				queryParams.Set("oneTimeAccessToken", oneTimeAccessToken)
+
+				callbackUrl.RawQuery = queryParams.Encode()
+
+				_, err = regkeyStore.Delete(regkey)
+				if err != nil {
+					return fmt.Errorf("error occured while trying to remove regkey from cache: %w", err)
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
+			if errors.Is(err, ErrInvalidRegistrationKey) {
+				respondWith400(w, r, err.Error())
+				return
 			}
 
 			respondWith500(w, r, "")
-			log.Printf("error occured while trying to create user in db: %v", err)
 			return
 		}
-
-		value, err := oneTimeAccessTokenStore.PutAndGenerateRandomKeyForValue(fmt.Sprintf("userId:%d", userId))
-		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
-			respondWith500(w, r, "")
-			log.Printf("error occured while trying to generate random access token: %v", err)
-			return
-		}
-
-		queryParams := callbackUrl.Query()
-		queryParams.Set("oneTimeAccessToken", value)
-
-		callbackUrl.RawQuery = queryParams.Encode()
 
 		w.Header().Add("Location", callbackUrl.String())
 		w.WriteHeader(http.StatusTemporaryRedirect)
-
-		_, err = w.Write([]byte("Przekierowywanie, proszę czekać..."))
-		if err != nil {
-			oneTimeAccessTokenStore.Delete(value)
-
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
-			respondWith500(w, r, "")
-			log.Printf("error occured while trying to write response body to the client: %v", err)
-			return
-		}
-
-		regkeyStore.Delete(regkey)
 	}
 }
