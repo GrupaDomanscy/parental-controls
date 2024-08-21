@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -357,5 +358,62 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 
 		w.Header().Add("Location", callbackUrl.String())
 		w.WriteHeader(http.StatusTemporaryRedirect)
+	}
+}
+
+var ErrInvalidOtat = errors.New("invalid one time access token")
+
+func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache.Store, otatStore *rckstrvcache.Store, db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		otatToken := chi.URLParam(r, "otat_token")
+
+		if len(otatToken) == 0 {
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
+
+		err := otatStore.InTransaction(func(otatStore rckstrvcache.StoreCompatible) error {
+			payload, exists, err := otatStore.Get(otatToken)
+			if err != nil {
+				return fmt.Errorf("error occured while trying to get otat from cache: %w", err)
+			}
+
+			if !exists {
+				return ErrInvalidOtat
+			}
+
+			userId, err := strconv.Atoi(strings.Replace(payload, "userId:", "", 1))
+			if err != nil {
+				return fmt.Errorf("error occured while trying to get userId from otat cache payload: %w", err)
+			}
+
+			tx, err := db.Begin()
+			if err != nil {
+				return fmt.Errorf("error occured while trying to start transaction: %w", err)
+			}
+
+			user, err := users.FindOneById(tx, userId)
+			if err != nil {
+				return fmt.Errorf("error occured while trying to find user by id: %w", err)
+			}
+
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("error occured while trying to commit: %w", err)
+			}
+
+			return nil
+		})
+		if err != nil {
+			if errors.Is(err, ErrInvalidOtat) {
+				respondWith400(w, r, err.Error())
+				return
+			}
+
+			respondWith500(w, r, "")
+			log.Println(err)
+			return
+		}
+
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rsa"
 	"database/sql"
 	"domanscy.group/env"
 	"domanscy.group/parental-controls/server/database"
@@ -22,6 +23,8 @@ type ServerConfig struct {
 	EmailFromAddress string `env:"EMAIL_FROM_ADDRESS"`
 	SmtpAddress      string `env:"SMTP_ADDRESS"`
 	SmtpPort         uint16 `env:"SMTP_PORT"`
+
+	BearerTokenPrivateKey rsa.PrivateKey `env:"BEARER_TOKEN_PRIVATE_KEY" env_type:"PRIVATE_KEY"`
 
 	DatabaseUrl string `env:"DATABASE_URL"`
 }

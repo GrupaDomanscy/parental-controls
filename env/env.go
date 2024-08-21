@@ -1,12 +1,30 @@
 package env
 
 import (
+	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
 	"reflect"
 	"strconv"
 )
+
+func handlePrivateKey(field reflect.Value, envValue string) {
+	var decodedHex []byte
+
+	_, err := hex.Decode(decodedHex, []byte(envValue))
+	if err != nil {
+		panic(err)
+	}
+
+	key, err := x509.ParsePKCS1PrivateKey(decodedHex)
+	if err != nil {
+		panic(err)
+	}
+
+	field.Set(reflect.ValueOf(key))
+}
 
 func ReadToCfg(cfg interface{}) {
 	if reflect.ValueOf(cfg).Kind() != reflect.Pointer {
@@ -45,6 +63,12 @@ func ReadToCfg(cfg interface{}) {
 		envValue := os.Getenv(envName)
 		if envValue == "" {
 			log.Fatalf("env %s has not been set", envName)
+		}
+
+		envTypeTag := reflect.TypeOf(cfg).Elem().Field(i).Tag.Get("env_type")
+		if envTypeTag == "RSA_PRIVATE_KEY" {
+			handlePrivateKey(field, envValue)
+			return
 		}
 
 		switch fieldType {
