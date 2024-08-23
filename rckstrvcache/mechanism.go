@@ -188,6 +188,14 @@ func (storeInTx *StoreInTx) Delete(key string) (affected bool, err error) {
 	return deleteFromDb(queryable, key)
 }
 
+func (storeInTx *StoreInTx) Commit() error {
+	return storeInTx.Commit()
+}
+
+func (storeInTx *StoreInTx) Rollback() error {
+	return storeInTx.Rollback()
+}
+
 type InTransactionCallback = func(store StoreCompatible) error
 
 func (store *Store) InTransaction(callback InTransactionCallback) (err error) {
@@ -209,4 +217,13 @@ func (store *Store) InTransaction(callback InTransactionCallback) (err error) {
 	}
 
 	return tx.Commit()
+}
+
+func (store *Store) Begin() (*StoreInTx, error) {
+	tx, err := store.db.BeginTx(store.ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+	return &StoreInTx{tx: tx, ttl: store.ttl}, nil
 }

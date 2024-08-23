@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func CreateOneTimeAccessTokenForUser(privateKey *rsa.PrivateKey, userId int) ([]byte, error) {
+func CreateBearerTokenForUser(privateKey *rsa.PrivateKey, userId int) ([]byte, error) {
 	payload := fmt.Sprintf("userId:%d", userId)
 
 	encrypted, err := encryption.Encrypt(privateKey, []byte(payload))
@@ -19,7 +19,7 @@ func CreateOneTimeAccessTokenForUser(privateKey *rsa.PrivateKey, userId int) ([]
 	return encrypted, nil
 }
 
-func GetUserIdFromOneTimeAccessToken(privateKey *rsa.PrivateKey, token []byte) (int, error) {
+func GetUserIdFromBearerToken(privateKey *rsa.PrivateKey, token []byte) (int, error) {
 	decrypted, err := encryption.Decrypt(privateKey, token)
 	if err != nil {
 		return 0, err
