@@ -94,7 +94,7 @@ func convertStructToJson(t *testing.T, obj interface{}) []byte {
 }
 
 func initializeMailpitAndDeleteAllMessages(t *testing.T) *mailpitsuite.Api {
-	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+	mailpit, err := mailpitsuite.NewApi(getMailpitExecutableFilePath())
 	if err != nil {
 		t.Fatal(err)
 	}
