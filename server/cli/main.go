@@ -18,7 +18,18 @@ func init() {
 	flag.StringVar(&output, "output", "", "Output file location, valid for commands: generate-private-key. If output is not supplied, it will write to stdout.")
 }
 
+func usage() {
+	fmt.Printf("Usage: %s [OPTIONS] argument ...\n", os.Args[0])
+	fmt.Println()
+	fmt.Println("Arguments:")
+	fmt.Println("  generate-private-key - generates private key to stdout (there is also an option to write to the file directly, see -output)")
+	fmt.Println()
+	fmt.Println("Options:")
+	flag.PrintDefaults()
+}
+
 func main() {
+	flag.Usage = usage
 	flag.Parse()
 
 	command = flag.Arg(0)
@@ -42,6 +53,6 @@ func main() {
 		}
 	} else {
 		fmt.Println("unknown command supplied")
-		fmt.Println("valid commands: generate-private-key")
+		flag.Usage()
 	}
 }
