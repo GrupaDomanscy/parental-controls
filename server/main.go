@@ -50,13 +50,13 @@ func startServer(cfg ServerConfig, regkeysStore *rckstrvcache.Store, otatStore *
 }
 
 func readConfig() ServerConfig {
-	appUrl, exists, err := env.ParseValidUrlWithHttpOrHttpsProtocol("APP_URL")
+	appUrl, exists, err := env.ParseValidUrlVarWithHttpOrHttpsProtocol("APP_URL")
 	if !exists {
 		log.Fatalf("env '%s' is required", "APP_URL")
 	}
 
 	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", err)
+		log.Fatalf("env '%s' parsing error: %v", "APP_URL", err)
 	}
 
 	appUrlWithoutTrailingSlash := appUrl.String()
@@ -77,7 +77,7 @@ func readConfig() ServerConfig {
 	}
 
 	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", err)
+		log.Fatalf("env '%s' parsing error: %v", "SERVER_PORT", err)
 	}
 
 	emailFromAddress, exists := env.ParseStringVar("EMAIL_FROM_ADDRESS")
@@ -91,7 +91,7 @@ func readConfig() ServerConfig {
 	}
 
 	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", err)
+		log.Fatalf("env '%s' parsing error: %v", "EMAIL_FROM_ADDRESS", err)
 	}
 
 	smtpPort, exists, err := env.ParseUint16Var("SMTP_PORT")
@@ -100,7 +100,7 @@ func readConfig() ServerConfig {
 	}
 
 	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", err)
+		log.Fatalf("env '%s' parsing error: %v", "SMTP_PORt", err)
 	}
 
 	bearerTokenPrivateKey, exists, err := env.ParsePrivateKeyVarFromFilePath("BEARER_TOKEN_PRIVATE_KEY")
@@ -109,7 +109,7 @@ func readConfig() ServerConfig {
 	}
 
 	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", err)
+		log.Fatalf("env '%s' parsing error: %v", "BEARER_TOKEN_PRIVATE_KEY", err)
 	}
 
 	databaseUrl, exists := env.ParseStringVar("DATABASE_URL")
@@ -131,32 +131,34 @@ func readConfig() ServerConfig {
 	return cfg
 }
 
+func logFatalIfErr(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	log.SetFlags(log.Ldate | log.LUTC | log.Lmicroseconds | log.Llongfile)
+
+	cfg := readConfig()
 
 	regkeysStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Minute * 15)
 	if err != nil {
 		log.Fatalf("fatal error occured while trying to initialize regkey store: %v", err)
 	}
 
-	defer func(regkeysStore *rckstrvcache.Store) {
-		err := regkeysStore.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
+	defer func(store *rckstrvcache.Store) {
+		logFatalIfErr(store.Close())
 	}(regkeysStore)
 
-	oneTimeAccessTokenStore, oneTimeAccessTokenErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+	otatStore, otatStoreErrCh, err := rckstrvcache.InitializeStore(time.Minute)
 	if err != nil {
 		log.Fatalf("fatal error occured while trying to initialize one time access token store: %v", err)
 	}
 
-	defer func(oneTimeAccessTokenStore *rckstrvcache.Store) {
-		err := oneTimeAccessTokenStore.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(oneTimeAccessTokenStore)
+	defer func(store *rckstrvcache.Store) {
+		logFatalIfErr(store.Close())
+	}(otatStore)
 
 	db, err := sql.Open("sqlite3", cfg.DatabaseUrl)
 	if err != nil {
@@ -164,10 +166,7 @@ func main() {
 	}
 
 	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
-			log.Println(err)
-		}
+		logFatalIfErr(db.Close())
 	}(db)
 
 	err = database.Migrate(db, map[string]string{
@@ -179,13 +178,13 @@ func main() {
 
 	httpServerErrCh := make(chan error)
 
-	go startServer(cfg, regkeysStore, oneTimeAccessTokenStore, db, httpServerErrCh)
+	go startServer(cfg, regkeysStore, otatStore, db, httpServerErrCh)
 
 	for {
 		select {
 		case err = <-httpServerErrCh:
 			log.Fatalf("Error from http server: %v", err)
-		case err = <-oneTimeAccessTokenErrCh:
+		case err = <-otatStoreErrCh:
 			log.Fatalf("Error from one time access token store: %v", err)
 		case err = <-regkeyErrCh:
 			log.Fatalf("Error from regkey store: %v", err)
