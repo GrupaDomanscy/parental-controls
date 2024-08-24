@@ -68,7 +68,7 @@ func readConfig() ServerConfig {
 
 	serverAddress, exists := env.ParseStringVar("SERVER_ADDRESS")
 	if !exists {
-		log.Fatalf("env '%s' is required", "APP_URL")
+		log.Fatalf("env '%s' is required", "SERVER_ADDRESS")
 	}
 
 	serverPort, exists, err := env.ParseUint16Var("SERVER_PORT")
@@ -85,13 +85,9 @@ func readConfig() ServerConfig {
 		log.Fatalf("env '%s' is required", "EMAIL_FROM_ADDRESS")
 	}
 
-	smtpAddress, exists, err := env.ParseUrlVarOnlyWithHost("SMTP_ADDRESS")
+	smtpAddress, exists := env.ParseStringVar("SMTP_ADDRESS")
 	if !exists {
-		log.Fatalf("env '%s' is required", "EMAIL_FROM_ADDRESS")
-	}
-
-	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", "EMAIL_FROM_ADDRESS", err)
+		log.Fatalf("env '%s' is required", "SMTP_ADDRESS")
 	}
 
 	smtpPort, exists, err := env.ParseUint16Var("SMTP_PORT")
@@ -100,7 +96,7 @@ func readConfig() ServerConfig {
 	}
 
 	if err != nil {
-		log.Fatalf("env '%s' parsing error: %v", "SMTP_PORt", err)
+		log.Fatalf("env '%s' parsing error: %v", "SMTP_PORT", err)
 	}
 
 	bearerTokenPrivateKey, exists, err := env.ParsePrivateKeyVarFromFilePath("BEARER_TOKEN_PRIVATE_KEY")
@@ -114,7 +110,7 @@ func readConfig() ServerConfig {
 
 	databaseUrl, exists := env.ParseStringVar("DATABASE_URL")
 	if !exists {
-		log.Fatalf("env '%s' is required", "BEARER_TOKEN_PRIVATE_KEY")
+		log.Fatalf("env '%s' is required", "DATABASE_URL")
 	}
 
 	cfg := ServerConfig{
@@ -122,7 +118,7 @@ func readConfig() ServerConfig {
 		ServerAddress:         serverAddress,
 		ServerPort:            serverPort,
 		EmailFromAddress:      emailFromAddress,
-		SmtpAddress:           smtpAddress.String(),
+		SmtpAddress:           smtpAddress,
 		SmtpPort:              smtpPort,
 		BearerTokenPrivateKey: bearerTokenPrivateKey,
 		DatabaseUrl:           databaseUrl,

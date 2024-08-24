@@ -40,9 +40,9 @@ func ParsePrivateKeyVarFromFilePath(envName string) (value *rsa.PrivateKey, exis
 		return nil, true, fmt.Errorf("failed to read file %s", err)
 	}
 
-	var decodedHex []byte
+	decodedHex := make([]byte, hex.DecodedLen(len(rawFile)))
 
-	_, err = hex.Decode(decodedHex, []byte(rawFile))
+	_, err = hex.Decode(decodedHex, rawFile)
 	if err != nil {
 		return nil, true, fmt.Errorf("env '%s' must be a valid private key converted to hex: %w", envName, err)
 	}
@@ -112,34 +112,4 @@ func ParseUint16Var(envName string) (value uint16, valid bool, err error) {
 	parsedWithCast := uint16(parsedWithoutCast)
 
 	return parsedWithCast, true, nil
-}
-
-func ParseUrlVarOnlyWithHost(envName string) (value *url.URL, exists bool, err error) {
-	rawValue, exists := os.LookupEnv(envName)
-	if !exists {
-		return nil, false, nil
-	}
-
-	parsedUrl, err := url.Parse(rawValue)
-	if err != nil {
-		return nil, true, err
-	}
-
-	if parsedUrl.Scheme != "" {
-		return nil, true, fmt.Errorf("do not pass any protocol with the url! valid examples: localhost, 127.0.0.1, 165.42.78.2")
-	}
-
-	if parsedUrl.Path != "" {
-		return nil, true, fmt.Errorf("do not pass any path with the url! valid examples: localhost, 127.0.0.1, 165.42.78.2")
-	}
-
-	if parsedUrl.RawFragment != "" {
-		return nil, true, fmt.Errorf("do not pass any url fragment with the url! valid examples: localhost, 127.0.0.1, 165.42.78.2")
-	}
-
-	if parsedUrl.RawQuery != "" {
-		return nil, true, fmt.Errorf("do not pass any query params with the url! valid examples: localhost, 127.0.0.1, 165.42.78.2")
-	}
-
-	return parsedUrl, true, nil
 }

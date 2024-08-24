@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -41,7 +41,7 @@ func main() {
 		}
 
 		privateKeyInBytes := x509.MarshalPKCS1PrivateKey(privateKey)
-		privateKeyInBase64 := base64.StdEncoding.EncodeToString(privateKeyInBytes)
+		privateKeyInBase64 := hex.EncodeToString(privateKeyInBytes)
 
 		if output == "" {
 			fmt.Println(privateKeyInBase64)
