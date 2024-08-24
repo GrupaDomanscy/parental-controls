@@ -36,6 +36,7 @@ func NewServer(cfg ServerConfig, regkeysStore *rckstrvcache.Store, oneTimeAccess
 	r.Post("/login", HttpAuthLogin(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
 	r.Post("/register", HttpAuthStartRegistrationProcess(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
 	r.Get("/finish_registration/{regkey}", HttpAuthFinishRegistrationProcess(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
+	r.Post("/get_bearer_from_otat/{otat}", HttpAuthGetBearerTokenFromOtat(&cfg, regkeysStore, oneTimeAccessTokenStore, db))
 
 	return r
 }

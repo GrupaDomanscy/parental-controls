@@ -2,10 +2,12 @@ package main
 
 import (
 	"crypto/rsa"
-	"domanscy.group/parental-controls/server/encryption"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"domanscy.group/parental-controls/server/encryption"
 )
 
 func CreateBearerTokenForUser(privateKey *rsa.PrivateKey, userId int) ([]byte, error) {
@@ -16,11 +18,18 @@ func CreateBearerTokenForUser(privateKey *rsa.PrivateKey, userId int) ([]byte, e
 		return nil, fmt.Errorf("error occured while encrypting token payload: %w", err)
 	}
 
-	return encrypted, nil
+	hexEncoded := []byte(hex.EncodeToString(encrypted))
+
+	return hexEncoded, nil
 }
 
 func GetUserIdFromBearerToken(privateKey *rsa.PrivateKey, token []byte) (int, error) {
-	decrypted, err := encryption.Decrypt(privateKey, token)
+	hexDecoded, err := hex.DecodeString(string(token))
+	if err != nil {
+		return 0, err
+	}
+
+	decrypted, err := encryption.Decrypt(privateKey, []byte(hexDecoded))
 	if err != nil {
 		return 0, err
 	}

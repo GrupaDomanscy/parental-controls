@@ -367,7 +367,7 @@ var ErrInvalidOtat = errors.New("invalid one time access token")
 
 func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache.Store, otatStore *rckstrvcache.Store, db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		otatToken := chi.URLParam(r, "otat_token")
+		otatToken := chi.URLParam(r, "otat")
 
 		if len(otatToken) == 0 {
 			respondWith400(w, r, ErrInvalidOtat.Error())
@@ -444,6 +444,6 @@ func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache
 		}
 
 		w.WriteHeader(200)
-		w.Write([]byte(bearer))
+		w.Write(bearer)
 	}
 }
