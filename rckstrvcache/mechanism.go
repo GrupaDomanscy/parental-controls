@@ -189,11 +189,11 @@ func (storeInTx *StoreInTx) Delete(key string) (affected bool, err error) {
 }
 
 func (storeInTx *StoreInTx) Commit() error {
-	return storeInTx.Commit()
+	return storeInTx.tx.Commit()
 }
 
 func (storeInTx *StoreInTx) Rollback() error {
-	return storeInTx.Rollback()
+	return storeInTx.tx.Rollback()
 }
 
 type InTransactionCallback = func(store StoreCompatible) error
