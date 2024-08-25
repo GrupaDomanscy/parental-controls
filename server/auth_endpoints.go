@@ -51,31 +51,16 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 			return
 		}
 
-		defer func(tx *sql.Tx) {
-			err := tx.Commit()
-			if err != nil {
-				log.Printf("failed to commit the transaction: %v", err)
-			}
-		}(tx)
-
 		user, err := users.FindOneByEmail(tx, requestBody.Email)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith500(w, r, "")
 			log.Printf("error occured while trying to find user by email: %v", err)
 			return
 		}
 
 		if user == nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith400(w, r, ErrUserWithGivenEmailDoesNotExist.Error())
 			return
 		}
@@ -96,12 +81,7 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 
 		ip, err := getIPAddressFromRequest(w, r)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
-			log.Println(err)
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith400(w, r, err.Error())
 			return
 		}
@@ -123,11 +103,15 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 			mailBody.String(),
 		)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
+			log.Printf("failed to send login email: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
 
+		err = tx.Commit()
+		if err != nil {
+			log.Printf("failed to commit the transaction: %v", err)
 			respondWith500(w, r, "")
 			return
 		}
