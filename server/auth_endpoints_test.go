@@ -1069,7 +1069,51 @@ func TestHttpAuthGetBearerTokenFromOtat(t *testing.T) {
 	})
 
 	t.Run("returns 400 if otat is expired", func(t *testing.T) {
-		//TODO
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Second)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		key, err := oneTimeAccessTokenStore.Put("userId:2")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(time.Millisecond * 1500)
+
+		recorder := httptest.NewRecorder()
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 400 {
+			t.Errorf("expected status code 400, received %d", recorder.Result().StatusCode)
+		}
+
+		if recorder.Body.String() != ErrInvalidOtat.Error() {
+			t.Errorf("expected body \"%s\", received \"%s\"", ErrInvalidOtat.Error(), recorder.Body.String())
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("returns 400 if owner of the otat (user) has been removed", func(t *testing.T) {
