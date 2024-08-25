@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"database/sql"
 	_ "embed"
 	"encoding/json"
@@ -25,13 +27,26 @@ import (
 )
 
 var testingCfg = &ServerConfig{
-	AppUrl:           "http://127.0.0.1:8080",
-	ServerAddress:    "127.0.0.1",
-	ServerPort:       8080,
+	AppUrl:        "http://127.0.0.1:8080",
+	ServerAddress: "127.0.0.1",
+	ServerPort:    8080,
+
 	EmailFromAddress: "test@parental-controls.local",
 	SmtpAddress:      "127.0.0.1",
 	SmtpPort:         1025,
-	DatabaseUrl:      ":memory:",
+
+	BearerTokenPrivateKey: rsaMustGenerateKey(),
+
+	DatabaseUrl: ":memory:",
+}
+
+func rsaMustGenerateKey() *rsa.PrivateKey {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return key
 }
 
 func doTFatalIfErr(t *testing.T, err error) {
@@ -1089,14 +1104,21 @@ func TestHttpAuthGetBearerTokenFromOtat(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		time.Sleep(time.Millisecond * 1500)
+		time.Sleep(time.Second * 2)
 
 		recorder := httptest.NewRecorder()
+
+		key = url.PathEscape(key)
+
+		chiRouteCtx := chi.NewRouteContext()
+		chiRouteCtx.URLParams.Add("otat", key)
 
 		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, chiRouteCtx))
 
 		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
 		if recorder.Result().StatusCode != 400 {
@@ -1117,10 +1139,146 @@ func TestHttpAuthGetBearerTokenFromOtat(t *testing.T) {
 	})
 
 	t.Run("returns 400 if owner of the otat (user) has been removed", func(t *testing.T) {
-		//TODO
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		userId, err := users.Create(tx, "user@localhost.local")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key = url.PathEscape(key)
+
+		// remove the user
+		err = tx.Rollback()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		recorder := httptest.NewRecorder()
+
+		chiRouteCtx := chi.NewRouteContext()
+		chiRouteCtx.URLParams.Add("otat", key)
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, chiRouteCtx))
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 400 {
+			t.Errorf("expected status code 400, received %d", recorder.Result().StatusCode)
+		}
+
+		if recorder.Body.String() != ErrInvalidOtat.Error() {
+			t.Errorf("expected body \"%s\", received \"%s\"", ErrInvalidOtat.Error(), recorder.Body.String())
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 
 	t.Run("generates valid bearer token and returns 200 ok", func(t *testing.T) {
-		//TODO
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		userId, err := users.Create(tx, "user@localhost.local")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key = url.PathEscape(key)
+
+		err = tx.Commit()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		recorder := httptest.NewRecorder()
+
+		chiRouteCtx := chi.NewRouteContext()
+		chiRouteCtx.URLParams.Add("otat", key)
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, chiRouteCtx))
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 200 {
+			t.Errorf("expected status code 200, received %d", recorder.Result().StatusCode)
+		}
+
+		token := recorder.Body.String()
+
+		userIdFromToken, err := GetUserIdFromBearerToken(testingCfg.BearerTokenPrivateKey, []byte(token))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if userIdFromToken != userId {
+			t.Errorf("user id from bearer token is invalid. expected %d, received %d", userId, userIdFromToken)
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
 	})
 }

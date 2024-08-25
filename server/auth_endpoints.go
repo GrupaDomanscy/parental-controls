@@ -294,10 +294,6 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 			err = oneTimeAccessTokenStore.InTransaction(func(oneTimeAccessTokenStore rckstrvcache.StoreCompatible) error {
 				oneTimeAccessToken, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
 				if err != nil {
-					return err
-				}
-
-				if err != nil {
 					txErr := tx.Rollback()
 					if txErr != nil {
 						err = errors.Join(err, txErr)
@@ -361,6 +357,16 @@ func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache
 		}
 
 		otatTx, err := otatStore.Begin()
+		if err != nil {
+			respondWith500(w, r, "")
+			return
+		}
+
+		otatToken, err = url.PathUnescape(otatToken)
+		if err != nil {
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
 
 		payload, exists, err := otatTx.Get(otatToken)
 		if err != nil {
@@ -371,13 +377,7 @@ func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache
 		}
 
 		if !exists {
-			err = otatTx.Rollback()
-			if err != nil {
-				respondWith500(w, r, "")
-				log.Println(err)
-				return
-			}
-
+			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
 			respondWith400(w, r, ErrInvalidOtat.Error())
 			return
 		}
@@ -400,15 +400,43 @@ func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache
 
 		user, err := users.FindOneById(tx, userId)
 		if err != nil {
-			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
+			err = littlehelpers.IfErrJoin(err, tx.Rollback(), otatTx.Rollback())
 			log.Printf("error occured while trying to find user by id: %v", err)
 			respondWith500(w, r, "")
 			return
 		}
 
+		if user == nil {
+			_, err := otatTx.Delete(otatToken)
+			if err != nil {
+				txErr := tx.Rollback()
+				otatTxErr := otatTx.Rollback()
+
+				err = errors.Join(err, txErr, otatTxErr)
+
+				log.Printf("failed to rollback transaction(s) after user == nil error: %v", err)
+				respondWith500(w, r, "")
+				return
+			} else {
+				txErr := tx.Commit()
+				otatTxErr := otatTx.Commit()
+
+				err = errors.Join(txErr, otatTxErr)
+
+				if err != nil {
+					log.Printf("failed to commit transaction(s) after user == nil error: %v", err)
+					respondWith500(w, r, "")
+					return
+				}
+			}
+
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
+
 		bearer, err := CreateBearerTokenForUser(cfg.BearerTokenPrivateKey, user.Id)
 		if err != nil {
-			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
+			err = littlehelpers.IfErrJoin(err, tx.Rollback(), otatTx.Rollback())
 			log.Printf("error occured while trying to create bearer token: %v", err)
 			respondWith500(w, r, "")
 			return
