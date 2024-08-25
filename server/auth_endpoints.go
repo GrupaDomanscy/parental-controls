@@ -157,69 +157,71 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvca
 
 		user, err := users.FindOneByEmail(tx, requestBody.Email)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith500(w, r, "")
 			log.Printf("error occured while trying to find user by email: %v", err)
 			return
 		}
 
 		if user != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith400(w, r, ErrUserWithGivenEmailAlreadyExists.Error())
 			return
 		}
 
-		err = regkeysStore.InTransaction(func(regkeysTx rckstrvcache.StoreCompatible) error {
-			regkey, err := regkeysTx.Put(requestBody.Email + ";" + callbackUrl.String())
-			if err != nil {
-				return fmt.Errorf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
-			}
+		regkeysTx, err := regkeysStore.Begin()
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
+			log.Printf("error occured while trying to begin regkeysStore tx: %v", err)
+			return
+		}
 
-			emailBody := bytes.NewBuffer([]byte{})
-			err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
-				InstanceAddr       string
-				IsOfficialInstance bool
-				Link               string
-			}{
-				InstanceAddr:       callbackUrl.Host,
-				IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
-				Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to construct email template: %w", err)
-			}
+		regkey, err := regkeysTx.Put(requestBody.Email + ";" + callbackUrl.String())
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, regkeysTx.Rollback(), tx.Rollback())
+			log.Printf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
+			respondWith500(w, r, "")
+			return
+		}
 
-			err = sendMailAndHandleError(
-				w, r,
-				cfg.SmtpAddress,
-				cfg.SmtpPort,
-				cfg.EmailFromAddress,
-				requestBody.Email,
-				"Potwierdź rejestracje w kontroli rodzicielskiej",
-				emailBody.String(),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to send mail: %w", err)
-			}
-
-			return nil
+		emailBody := bytes.NewBuffer([]byte{})
+		err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
+			InstanceAddr       string
+			IsOfficialInstance bool
+			Link               string
+		}{
+			InstanceAddr:       callbackUrl.Host,
+			IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
+			Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
 		})
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
-			}
-
+			err = littlehelpers.IfErrJoin(err, regkeysTx.Rollback(), tx.Rollback())
+			log.Printf("failed to construct email template: %v", err)
 			respondWith500(w, r, "")
-			log.Println(err)
+			return
+		}
+
+		err = sendMailAndHandleError(
+			w, r,
+			cfg.SmtpAddress,
+			cfg.SmtpPort,
+			cfg.EmailFromAddress,
+			requestBody.Email,
+			"Potwierdź rejestracje w kontroli rodzicielskiej",
+			emailBody.String(),
+		)
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, regkeysTx.Rollback(), tx.Rollback())
+			log.Printf("failed to send mail: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		err = regkeysTx.Commit()
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
+			log.Printf("failed to commit to regkeys store: %v", err)
+			respondWith500(w, r, "")
 			return
 		}
 
