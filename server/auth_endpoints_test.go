@@ -3,15 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"database/sql"
-	"domanscy.group/parental-controls/server/database"
-	"domanscy.group/parental-controls/server/users"
-	"domanscy.group/rckstrvcache"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/go-chi/chi"
+	"html/template"
 	"log"
 	"mailpitsuite"
 	"net/http"
@@ -20,16 +19,40 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"domanscy.group/parental-controls/server/database"
+	"domanscy.group/parental-controls/server/users"
+	"domanscy.group/rckstrvcache"
+	"github.com/go-chi/chi"
 )
 
 var testingCfg = &ServerConfig{
-	AppUrl:           "http://127.0.0.1:8080",
-	ServerAddress:    "127.0.0.1",
-	ServerPort:       8080,
+	AppUrl:        "http://127.0.0.1:8080",
+	ServerAddress: "127.0.0.1",
+	ServerPort:    8080,
+
 	EmailFromAddress: "test@parental-controls.local",
 	SmtpAddress:      "127.0.0.1",
 	SmtpPort:         1025,
-	DatabaseUrl:      ":memory:",
+
+	BearerTokenPrivateKey: rsaMustGenerateKey(),
+
+	DatabaseUrl: ":memory:",
+}
+
+func rsaMustGenerateKey() *rsa.PrivateKey {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return key
+}
+
+func doTFatalIfErr(t *testing.T, err error) {
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func openDatabase(t *testing.T) *sql.DB {
@@ -94,7 +117,7 @@ func convertStructToJson(t *testing.T, obj interface{}) []byte {
 }
 
 func initializeMailpitAndDeleteAllMessages(t *testing.T) *mailpitsuite.Api {
-	mailpit, err := mailpitsuite.NewApi(mailpitExeFilePath)
+	mailpit, err := mailpitsuite.NewApi(getMailpitExecutableFilePath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,6 +412,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 //go:embed embeds_for_testing/auth_endpoints_test_embed_01.txt
 var embed01 string
+var embed01Template *template.Template = template.Must(template.New("embed01").Parse(embed01))
 
 func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 	t.Parallel()
@@ -702,11 +726,35 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !strings.Contains(messageSummary.HTML, embed01) {
-			t.Errorf("Email is invalid.")
+		assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
+
+		buffer := bytes.NewBuffer([]byte{})
+
+		allRegkeys, err := regkeyStore.GetAllKeys()
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
+		if len(allRegkeys) != 1 {
+			t.Fatalf("Expected one regkey, received: %d", len(allRegkeys))
+		}
+
+		regkey := allRegkeys[0]
+
+		err = embed01Template.ExecuteTemplate(buffer, "embed01", struct {
+			AppUrl string
+			Token  string
+		}{
+			AppUrl: testingCfg.AppUrl,
+			Token:  regkey,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !strings.Contains(messageSummary.HTML, buffer.String()) {
+			t.Errorf("Email is invalid.\n\n Expected:\n%s\n\nReceived:\n%s", buffer.String(), messageSummary.HTML)
+		}
 
 		select {
 		case err = <-regkeyErrCh:
@@ -981,6 +1029,248 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 
 		if responseBody != ErrInvalidRegistrationKey.Error() {
 			t.Errorf("Expected %s, received %s", ErrInvalidRegistrationKey.Error(), responseBody)
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
+	})
+}
+
+func TestHttpAuthGetBearerTokenFromOtat(t *testing.T) {
+	t.Run("returns 400 if provided otat does not exist", func(t *testing.T) {
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		recorder := httptest.NewRecorder()
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/somenonexistentotat", testingCfg.AppUrl), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 400 {
+			t.Errorf("expected status code 400, received %d", recorder.Result().StatusCode)
+		}
+
+		if recorder.Body.String() != ErrInvalidOtat.Error() {
+			t.Errorf("expected body \"%s\", received \"%s\"", ErrInvalidOtat.Error(), recorder.Body.String())
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
+	})
+
+	t.Run("returns 400 if otat is expired", func(t *testing.T) {
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Second)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		key, err := oneTimeAccessTokenStore.Put("userId:2")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(time.Second * 2)
+
+		recorder := httptest.NewRecorder()
+
+		key = url.PathEscape(key)
+
+		chiRouteCtx := chi.NewRouteContext()
+		chiRouteCtx.URLParams.Add("otat", key)
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, chiRouteCtx))
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 400 {
+			t.Errorf("expected status code 400, received %d", recorder.Result().StatusCode)
+		}
+
+		if recorder.Body.String() != ErrInvalidOtat.Error() {
+			t.Errorf("expected body \"%s\", received \"%s\"", ErrInvalidOtat.Error(), recorder.Body.String())
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
+	})
+
+	t.Run("returns 400 if owner of the otat (user) has been removed", func(t *testing.T) {
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		userId, err := users.Create(tx, "user@localhost.local")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key = url.PathEscape(key)
+
+		// remove the user
+		err = tx.Rollback()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		recorder := httptest.NewRecorder()
+
+		chiRouteCtx := chi.NewRouteContext()
+		chiRouteCtx.URLParams.Add("otat", key)
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, chiRouteCtx))
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 400 {
+			t.Errorf("expected status code 400, received %d", recorder.Result().StatusCode)
+		}
+
+		if recorder.Body.String() != ErrInvalidOtat.Error() {
+			t.Errorf("expected body \"%s\", received \"%s\"", ErrInvalidOtat.Error(), recorder.Body.String())
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
+	})
+
+	t.Run("generates valid bearer token and returns 200 ok", func(t *testing.T) {
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		userId, err := users.Create(tx, "user@localhost.local")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		key = url.PathEscape(key)
+
+		err = tx.Commit()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		recorder := httptest.NewRecorder()
+
+		chiRouteCtx := chi.NewRouteContext()
+		chiRouteCtx.URLParams.Add("otat", key)
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/%s", testingCfg.AppUrl, key), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, chiRouteCtx))
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 200 {
+			t.Errorf("expected status code 200, received %d", recorder.Result().StatusCode)
+		}
+
+		token := recorder.Body.String()
+
+		userIdFromToken, err := GetUserIdFromBearerToken(testingCfg.BearerTokenPrivateKey, []byte(token))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if userIdFromToken != userId {
+			t.Errorf("user id from bearer token is invalid. expected %d, received %d", userId, userIdFromToken)
 		}
 
 		select {

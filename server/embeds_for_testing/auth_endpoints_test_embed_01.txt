@@ -1,2 +1,42 @@
-Uwaga! Ta prośba o potwierdzenie nie pochodzi z oficjalnej strony.<br/>
+{{ define "embed01" }}
+    <style>
+        * {
+            font-family: Helvetica, sans-serif;
+        }
+
+        .btn {
+            text-decoration: none;
+            border-radius: 8px;
+            padding: 4px 8px;
+            color: white;
+        }
+
+        .btn-green {
+            background-color: mediumseagreen;
+            border: 2px solid darkgreen;
+        }
+
+        .btn-red {
+            background-color: indianred;
+            border: 2px solid red;
+        }
+    </style>
+
+    <h1>Witaj w systemie kontroli rodzicielskiej!</h1>
+
+    <p>
+        Jeżeli chcesz się zarejestrować, kliknij przycisk poniżej.
+        <br/>
+        Jeżeli to nie ty się rejestrowałeś, zignoruj tego maila, ktoś najwyraźniej się pomylił.
+    </p>
+
+    
+        <div style="display: flex;">
+            <p class="btn btn-red">
+                Uwaga! Ta prośba o potwierdzenie nie pochodzi z oficjalnej strony.<br/>
                 Dokładnie sprawdź adres widniejący na przycisku poniżej!
+            </p>
+        </div>
+    
+
+    <a class="btn btn-green" href="{{ .AppUrl }}/finish_registration/{{ .Token }}">Dokończ rejestrację w localhost:8080</a>{{ end }}

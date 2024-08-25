@@ -3,17 +3,20 @@ package main
 import (
 	"bytes"
 	"database/sql"
-	"domanscy.group/parental-controls/server/users"
-	"domanscy.group/rckstrvcache"
 	_ "embed"
 	"errors"
 	"fmt"
-	"github.com/go-chi/chi"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+
+	"domanscy.group/littlehelpers"
+	"domanscy.group/parental-controls/server/users"
+	"domanscy.group/rckstrvcache"
+	"github.com/go-chi/chi"
 )
 
 var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does not exist")
@@ -48,31 +51,16 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 			return
 		}
 
-		defer func(tx *sql.Tx) {
-			err := tx.Commit()
-			if err != nil {
-				log.Printf("failed to commit the transaction: %v", err)
-			}
-		}(tx)
-
 		user, err := users.FindOneByEmail(tx, requestBody.Email)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith500(w, r, "")
 			log.Printf("error occured while trying to find user by email: %v", err)
 			return
 		}
 
 		if user == nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith400(w, r, ErrUserWithGivenEmailDoesNotExist.Error())
 			return
 		}
@@ -93,12 +81,7 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 
 		ip, err := getIPAddressFromRequest(w, r)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
-
-			log.Println(err)
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith400(w, r, err.Error())
 			return
 		}
@@ -120,11 +103,15 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 			mailBody.String(),
 		)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				log.Printf("failed to rollback the transaction: %v", txErr)
-			}
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
+			log.Printf("failed to send login email: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
 
+		err = tx.Commit()
+		if err != nil {
+			log.Printf("failed to commit the transaction: %v", err)
 			respondWith500(w, r, "")
 			return
 		}
@@ -170,69 +157,71 @@ func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvca
 
 		user, err := users.FindOneByEmail(tx, requestBody.Email)
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith500(w, r, "")
 			log.Printf("error occured while trying to find user by email: %v", err)
 			return
 		}
 
 		if user != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
-			}
-
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
 			respondWith400(w, r, ErrUserWithGivenEmailAlreadyExists.Error())
 			return
 		}
 
-		err = regkeysStore.InTransaction(func(regkeysTx rckstrvcache.StoreCompatible) error {
-			regkey, err := regkeysTx.Put(requestBody.Email + ";" + callbackUrl.String())
-			if err != nil {
-				return fmt.Errorf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
-			}
+		regkeysTx, err := regkeysStore.Begin()
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
+			log.Printf("error occured while trying to begin regkeysStore tx: %v", err)
+			return
+		}
 
-			emailBody := bytes.NewBuffer([]byte{})
-			err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
-				InstanceAddr       string
-				IsOfficialInstance bool
-				Link               string
-			}{
-				InstanceAddr:       callbackUrl.Host,
-				IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
-				Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to construct email template: %w", err)
-			}
+		regkey, err := regkeysTx.Put(requestBody.Email + ";" + callbackUrl.String())
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, regkeysTx.Rollback(), tx.Rollback())
+			log.Printf("an error occured while trying to generate new regkey for email '%s': %v", requestBody.Email, err)
+			respondWith500(w, r, "")
+			return
+		}
 
-			err = sendMailAndHandleError(
-				w, r,
-				cfg.SmtpAddress,
-				cfg.SmtpPort,
-				cfg.EmailFromAddress,
-				requestBody.Email,
-				"Potwierdź rejestracje w kontroli rodzicielskiej",
-				emailBody.String(),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to send mail: %w", err)
-			}
-
-			return nil
+		emailBody := bytes.NewBuffer([]byte{})
+		err = startRegistrationProcessEmailTemplate.ExecuteTemplate(emailBody, "email_template", struct {
+			InstanceAddr       string
+			IsOfficialInstance bool
+			Link               string
+		}{
+			InstanceAddr:       callbackUrl.Host,
+			IsOfficialInstance: callbackUrl.Host == "officialinstance.local", //TODO
+			Link:               fmt.Sprintf("%s/finish_registration/%s", cfg.AppUrl, url.PathEscape(regkey)),
 		})
 		if err != nil {
-			txErr := tx.Rollback()
-			if txErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to rollback the transaction: %v", txErr))
-			}
-
+			err = littlehelpers.IfErrJoin(err, regkeysTx.Rollback(), tx.Rollback())
+			log.Printf("failed to construct email template: %v", err)
 			respondWith500(w, r, "")
-			log.Println(err)
+			return
+		}
+
+		err = sendMailAndHandleError(
+			w, r,
+			cfg.SmtpAddress,
+			cfg.SmtpPort,
+			cfg.EmailFromAddress,
+			requestBody.Email,
+			"Potwierdź rejestracje w kontroli rodzicielskiej",
+			emailBody.String(),
+		)
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, regkeysTx.Rollback(), tx.Rollback())
+			log.Printf("failed to send mail: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		err = regkeysTx.Commit()
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, tx.Rollback())
+			log.Printf("failed to commit to regkeys store: %v", err)
+			respondWith500(w, r, "")
 			return
 		}
 
@@ -305,10 +294,6 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 			err = oneTimeAccessTokenStore.InTransaction(func(oneTimeAccessTokenStore rckstrvcache.StoreCompatible) error {
 				oneTimeAccessToken, err := oneTimeAccessTokenStore.Put(fmt.Sprintf("userId:%d", userId))
 				if err != nil {
-					return err
-				}
-
-				if err != nil {
 					txErr := tx.Rollback()
 					if txErr != nil {
 						err = errors.Join(err, txErr)
@@ -357,5 +342,122 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 
 		w.Header().Add("Location", callbackUrl.String())
 		w.WriteHeader(http.StatusTemporaryRedirect)
+	}
+}
+
+var ErrInvalidOtat = errors.New("invalid one time access token")
+
+func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache.Store, otatStore *rckstrvcache.Store, db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		otatToken := chi.URLParam(r, "otat")
+
+		if len(otatToken) == 0 {
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
+
+		otatTx, err := otatStore.Begin()
+		if err != nil {
+			respondWith500(w, r, "")
+			return
+		}
+
+		otatToken, err = url.PathUnescape(otatToken)
+		if err != nil {
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
+
+		payload, exists, err := otatTx.Get(otatToken)
+		if err != nil {
+			err = littlehelpers.IfErrJoin(otatTx.Rollback(), err)
+			log.Printf("error occured while trying to get otat from cache: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		if !exists {
+			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
+
+		userId, err := strconv.Atoi(strings.Replace(payload, "userId:", "", 1))
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
+			log.Printf("error occured while trying to get userId from otat cache payload: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
+			log.Printf("error occured while trying to start transaction: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		user, err := users.FindOneById(tx, userId)
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, tx.Rollback(), otatTx.Rollback())
+			log.Printf("error occured while trying to find user by id: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		if user == nil {
+			_, err := otatTx.Delete(otatToken)
+			if err != nil {
+				txErr := tx.Rollback()
+				otatTxErr := otatTx.Rollback()
+
+				err = errors.Join(err, txErr, otatTxErr)
+
+				log.Printf("failed to rollback transaction(s) after user == nil error: %v", err)
+				respondWith500(w, r, "")
+				return
+			} else {
+				txErr := tx.Commit()
+				otatTxErr := otatTx.Commit()
+
+				err = errors.Join(txErr, otatTxErr)
+
+				if err != nil {
+					log.Printf("failed to commit transaction(s) after user == nil error: %v", err)
+					respondWith500(w, r, "")
+					return
+				}
+			}
+
+			respondWith400(w, r, ErrInvalidOtat.Error())
+			return
+		}
+
+		bearer, err := CreateBearerTokenForUser(cfg.BearerTokenPrivateKey, user.Id)
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, tx.Rollback(), otatTx.Rollback())
+			log.Printf("error occured while trying to create bearer token: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
+			log.Printf("error occured while trying to commit: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		err = otatTx.Commit()
+		if err != nil {
+			log.Printf("error occured while trying to commit: %v", err)
+			respondWith500(w, r, "")
+			return
+		}
+
+		w.WriteHeader(200)
+		w.Write(bearer)
 	}
 }
