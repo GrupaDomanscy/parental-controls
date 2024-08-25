@@ -34,6 +34,12 @@ var testingCfg = &ServerConfig{
 	DatabaseUrl:      ":memory:",
 }
 
+func doTFatalIfErr(t *testing.T, err error) {
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func openDatabase(t *testing.T) *sql.DB {
 	db, err := sql.Open("sqlite3", testingCfg.DatabaseUrl)
 	if err != nil {
@@ -1017,5 +1023,60 @@ func TestHttpAuthFinishRegistrationProcess(t *testing.T) {
 			log.Fatal(err)
 		default:
 		}
+	})
+}
+
+func TestHttpAuthGetBearerTokenFromOtat(t *testing.T) {
+	t.Run("returns 400 if provided otat does not exist", func(t *testing.T) {
+		regkeyStore, regkeyErrCh, err := rckstrvcache.InitializeStore(time.Second)
+		oneTimeAccessTokenStore, otatErrCh, err := rckstrvcache.InitializeStore(time.Minute)
+
+		defer func(regkeyStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, regkeyStore.Close())
+		}(regkeyStore, t)
+		defer func(oneTimeAccessTokenStore *rckstrvcache.Store, t *testing.T) {
+			doTFatalIfErr(t, oneTimeAccessTokenStore.Close())
+		}(oneTimeAccessTokenStore, t)
+
+		db := openDatabase(t)
+		defer func(db *sql.DB, t *testing.T) {
+			doTFatalIfErr(t, db.Close())
+		}(db, t)
+
+		recorder := httptest.NewRecorder()
+
+		request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get_bearer_token_from_otat/somenonexistentotat", testingCfg.AppUrl), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		HttpAuthGetBearerTokenFromOtat(testingCfg, regkeyStore, oneTimeAccessTokenStore, db)(recorder, request)
+		if recorder.Result().StatusCode != 400 {
+			t.Errorf("expected status code 400, received %d", recorder.Result().StatusCode)
+		}
+
+		if recorder.Body.String() != ErrInvalidOtat.Error() {
+			t.Errorf("expected body \"%s\", received \"%s\"", ErrInvalidOtat.Error(), recorder.Body.String())
+		}
+
+		select {
+		case err = <-regkeyErrCh:
+			log.Fatal(err)
+		case err = <-otatErrCh:
+			log.Fatal(err)
+		default:
+		}
+	})
+
+	t.Run("returns 400 if otat is expired", func(t *testing.T) {
+		//TODO
+	})
+
+	t.Run("returns 400 if owner of the otat (user) has been removed", func(t *testing.T) {
+		//TODO
+	})
+
+	t.Run("generates valid bearer token and returns 200 ok", func(t *testing.T) {
+		//TODO
 	})
 }
