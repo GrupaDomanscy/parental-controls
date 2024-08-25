@@ -4,14 +4,11 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"domanscy.group/parental-controls/server/database"
-	"domanscy.group/parental-controls/server/users"
-	"domanscy.group/rckstrvcache"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/go-chi/chi"
+	"html/template"
 	"log"
 	"mailpitsuite"
 	"net/http"
@@ -20,6 +17,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"domanscy.group/parental-controls/server/database"
+	"domanscy.group/parental-controls/server/users"
+	"domanscy.group/rckstrvcache"
+	"github.com/go-chi/chi"
 )
 
 var testingCfg = &ServerConfig{
@@ -389,6 +391,7 @@ func TestHttpAuthLogin(t *testing.T) {
 
 //go:embed embeds_for_testing/auth_endpoints_test_embed_01.txt
 var embed01 string
+var embed01Template *template.Template = template.Must(template.New("embed01").Parse(embed01))
 
 func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 	t.Parallel()
@@ -702,11 +705,35 @@ func TestHttpAuthStartRegistrationProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !strings.Contains(messageSummary.HTML, embed01) {
-			t.Errorf("Email is invalid.")
+		assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
+
+		buffer := bytes.NewBuffer([]byte{})
+
+		allRegkeys, err := regkeyStore.GetAllKeys()
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		assertRegkeyStoreHasOneItemAndItMatchesTheRequestData(t, regkeyStore, reqBody.Email, reqBody.Callback)
+		if len(allRegkeys) != 1 {
+			t.Fatalf("Expected one regkey, received: %d", len(allRegkeys))
+		}
+
+		regkey := allRegkeys[0]
+
+		err = embed01Template.ExecuteTemplate(buffer, "embed01", struct {
+			AppUrl string
+			Token  string
+		}{
+			AppUrl: testingCfg.AppUrl,
+			Token:  regkey,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !strings.Contains(messageSummary.HTML, buffer.String()) {
+			t.Errorf("Email is invalid.\n\n Expected:\n%s\n\nReceived:\n%s", buffer.String(), messageSummary.HTML)
+		}
 
 		select {
 		case err = <-regkeyErrCh:
