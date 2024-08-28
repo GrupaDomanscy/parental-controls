@@ -3,6 +3,7 @@ go 1.22.5
 use (
 	./littlehelpers
 	./client
+	./web
 	./env
 	./server
 	./mailpitsuite

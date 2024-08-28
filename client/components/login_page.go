@@ -5,7 +5,9 @@ import (
 	"github.com/chasefleming/elem-go/attrs"
 )
 
-func LoginPage() *elem.Element {
+type GetUrlCallback func(name string, args map[string]interface{}) string
+
+func LoginPage(getUrl GetUrlCallback) *elem.Element {
 	return Template(
 		elem.Div(attrs.Props{
 			attrs.Class: "flex flex-col min-h-screen",
@@ -37,10 +39,16 @@ func LoginPage() *elem.Element {
 					),
 
 					elem.Div(attrs.Props{
-						attrs.Class: "flex flex-col gap-1",
-					}, elem.Button(attrs.Props{
-						attrs.Class: "px-4 py-2 bg-blue-700/50 hover:bg-blue-600 focus:bg-blue-600 focus:outline focus:outline-blue-500 rounded",
-					}, elem.Text("Zaloguj"))),
+						attrs.Class: "flex flex-col gap-1 justify-center items-center",
+					},
+						elem.Button(attrs.Props{
+							attrs.Class: "px-4 py-2 bg-blue-700/50 hover:bg-blue-600 focus:bg-blue-600 focus:outline focus:outline-blue-500 rounded w-full",
+						}, elem.Text("Zaloguj")),
+						elem.A(attrs.Props{
+							attrs.Class: "px-4 py-2 text-blue-300",
+							attrs.Href:  getUrl("register", nil),
+						}, elem.Text("Nie masz konta? Kliknij tutaj.")),
+					),
 				),
 			),
 		),

@@ -9,9 +9,20 @@ import (
 	"domanscy.group/parental-controls/client/components"
 )
 
+func GetUrl(opts ServerOpts) func(string, map[string]interface{}) string {
+	return func(name string, args map[string]interface{}) string {
+		switch name {
+		case "register":
+			return fmt.Sprintf("%s/register", opts.baseUrl)
+		default:
+			return ""
+		}
+	}
+}
+
 func RenderLoginPageHttpHandler(opts ServerOpts) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write([]byte(components.LoginPage().Render()))
+		_, err := w.Write([]byte(components.LoginPage(GetUrl(opts)).Render()))
 		if err != nil {
 			log.Printf("Error occured while trying to write body data: %s\n", err.Error())
 		}
