@@ -13,7 +13,11 @@ func GetUrl(opts ServerOpts) func(string, map[string]interface{}) string {
 	return func(name string, args map[string]interface{}) string {
 		switch name {
 		case "register":
-			return fmt.Sprintf("%s/register", opts.baseUrl)
+			return fmt.Sprintf("%s/", opts.baseUrl)
+		case "login":
+			return fmt.Sprintf("%s/login", opts.baseUrl)
+		case "register:callback":
+			return fmt.Sprintf("%s/api/v1/register", opts.baseUrl)
 		default:
 			return ""
 		}
@@ -44,5 +48,22 @@ func LoginHttpHandler(opts ServerOpts) func(w http.ResponseWriter, r *http.Reque
 			respondWith500(w, r)
 			return
 		}
+	}
+}
+
+func RenderRegisterPageHttpHandler(opts ServerOpts) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write([]byte(components.RegisterPage(GetUrl(opts)).Render()))
+		if err != nil {
+			respondWith500(w, r)
+			log.Printf("error occured while trying to render register page: %v", err)
+			return
+		}
+	}
+}
+
+func RegisterHttpHandler(opts ServerOpts) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
 	}
 }

@@ -30,8 +30,10 @@ func NewServer(opts ServerOpts) http.Handler {
 		asset := chi.URLParam(r, "asset")
 		http.ServeFileFS(w, r, assetsFsStripped, asset)
 	})
+	router.Get("/", RenderRegisterPageHttpHandler(opts))
 	router.Get("/login", RenderLoginPageHttpHandler(opts))
 	router.Post("/login", LoginHttpHandler(opts))
+	router.Post("/api/v1/register", RegisterHttpHandler(opts))
 
 	return router
 }

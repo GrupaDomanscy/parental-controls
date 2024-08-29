@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -8,11 +8,9 @@ import (
 	"net/http"
 	"net/mail"
 	"net/url"
-)
 
-var ErrInvalidJsonPayload = errors.New("Invalid json payload")
-var ErrInvalidEmail = errors.New("Invalid email")
-var ErrInvalidCallbackUrl = errors.New("Invalid callback url")
+	"domanscy.group/parental-controls/server/shared"
+)
 
 func respondWith400(w http.ResponseWriter, _ *http.Request, message string) {
 	if message == "" {
@@ -31,7 +29,7 @@ func decodeJsonRequestBodyAndSendHttpErrorIfInvalid(w http.ResponseWriter, r *ht
 
 	err := decoder.Decode(decodedStruct)
 	if err != nil {
-		respondWith400(w, r, ErrInvalidJsonPayload.Error())
+		respondWith400(w, r, shared.ErrInvalidJsonPayload.Error())
 		return err
 	}
 
@@ -41,13 +39,13 @@ func decodeJsonRequestBodyAndSendHttpErrorIfInvalid(w http.ResponseWriter, r *ht
 func parseEmailAddressAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Request, email string) error {
 	address, err := mail.ParseAddress(email)
 	if err != nil {
-		respondWith400(w, r, ErrInvalidEmail.Error())
+		respondWith400(w, r, shared.ErrInvalidEmail.Error())
 		return err
 	}
 
 	if !(address.Name == "" && address.Address != "") {
-		respondWith400(w, r, ErrInvalidEmail.Error())
-		return ErrInvalidEmail
+		respondWith400(w, r, shared.ErrInvalidEmail.Error())
+		return shared.ErrInvalidEmail
 	}
 
 	return nil
@@ -56,11 +54,11 @@ func parseEmailAddressAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Req
 func parseUrlAndHandleErrorIfInvalid(w http.ResponseWriter, r *http.Request, value string) (*url.URL, error) {
 	parsed, err := url.Parse(value)
 	if err != nil {
-		respondWith400(w, r, ErrInvalidCallbackUrl.Error())
+		respondWith400(w, r, shared.ErrInvalidCallbackUrl.Error())
 		return nil, err
 	} else if parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		respondWith400(w, r, ErrInvalidCallbackUrl.Error())
-		return nil, ErrInvalidCallbackUrl
+		respondWith400(w, r, shared.ErrInvalidCallbackUrl.Error())
+		return nil, shared.ErrInvalidCallbackUrl
 	}
 
 	return parsed, nil

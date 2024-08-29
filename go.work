@@ -1,11 +1,12 @@
-go 1.22.5
+go 1.23.0
 
 use (
-	./littlehelpers
 	./client
-	./web
 	./env
-	./server
+	./littlehelpers
 	./mailpitsuite
 	./rckstrvcache
+	./rpc_executable
+	./server
+	./web
 )

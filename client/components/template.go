@@ -8,6 +8,7 @@ import (
 	"github.com/chasefleming/elem-go/attrs"
 )
 
+//go:generate rm -r local-assets-dir
 //go:generate cp -r ../assets local-assets-dir
 //go:embed local-assets-dir
 var assetsFS embed.FS
@@ -15,33 +16,28 @@ var assetsFS embed.FS
 var (
 	appCssFileTimestamp     int64
 	tailwindJsFileTimestamp int64
+	htmxJsFileTimestamp     int64
 	// timestampsMutex         sync.Mutex
 )
 
 func init() {
-	file, err := assetsFS.Open("local-assets-dir/app.css")
-	if err != nil {
-		panic(err)
+	getModTime := func(path string) int64 {
+		file, err := assetsFS.Open(path)
+		if err != nil {
+			panic(err)
+		}
+
+		fileInfo, err := file.Stat()
+		if err != nil {
+			panic(err)
+		}
+
+		return fileInfo.ModTime().UnixMilli()
 	}
 
-	fileInfo, err := file.Stat()
-	if err != nil {
-		panic(err)
-	}
-
-	appCssFileTimestamp = fileInfo.ModTime().UnixMilli()
-
-	file, err = assetsFS.Open("local-assets-dir/tailwindcss.js")
-	if err != nil {
-		panic(err)
-	}
-
-	fileInfo, err = file.Stat()
-	if err != nil {
-		panic(err)
-	}
-
-	tailwindJsFileTimestamp = fileInfo.ModTime().UnixMilli()
+	appCssFileTimestamp = getModTime("local-assets-dir/app.css")
+	tailwindJsFileTimestamp = getModTime("local-assets-dir/tailwindcss.js")
+	htmxJsFileTimestamp = getModTime("local-assets-dir/htmx.min.js")
 }
 
 func Template(elements ...elem.Node) *elem.Element {
@@ -66,6 +62,10 @@ func Template(elements ...elem.Node) *elem.Element {
 
 			elem.Script(attrs.Props{
 				attrs.Src: fmt.Sprintf("/assets/tailwindcss.js?%d", tailwindJsFileTimestamp),
+			}),
+
+			elem.Script(attrs.Props{
+				attrs.Src: fmt.Sprintf("/assets/htmx.min.js?%d", htmxJsFileTimestamp),
 			}),
 
 			elem.Link(attrs.Props{

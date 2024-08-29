@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"domanscy.group/littlehelpers"
+	"domanscy.group/parental-controls/server/shared"
 	"domanscy.group/parental-controls/server/users"
 	"domanscy.group/rckstrvcache"
 	"github.com/go-chi/chi"
@@ -23,12 +24,7 @@ var ErrUserWithGivenEmailDoesNotExist = errors.New("user with given email does n
 
 func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type RequestBody struct {
-			Email    string `json:"email"`
-			Callback string `json:"callback"`
-		}
-
-		var requestBody RequestBody
+		var requestBody shared.AuthLoginRequestBody
 
 		if err := decodeJsonRequestBodyAndSendHttpErrorIfInvalid(w, r, &requestBody); err != nil {
 			return
@@ -124,16 +120,9 @@ func HttpAuthLogin(cfg *ServerConfig, _ *rckstrvcache.Store, _ *rckstrvcache.Sto
 var startRegistrationProcessEmailBody string
 var startRegistrationProcessEmailTemplate = template.Must(template.New("email_template").Parse(startRegistrationProcessEmailBody))
 
-var ErrUserWithGivenEmailAlreadyExists = errors.New("user with given email already exists")
-
 func HttpAuthStartRegistrationProcess(cfg *ServerConfig, regkeysStore *rckstrvcache.Store, _ *rckstrvcache.Store, db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type RequestBody struct {
-			Email    string `json:"email"`
-			Callback string `json:"callback"`
-		}
-
-		var requestBody RequestBody
+		var requestBody shared.AuthStartRegistrationProcessRequestBody
 
 		if err := decodeJsonRequestBodyAndSendHttpErrorIfInvalid(w, r, &requestBody); err != nil {
 			return
@@ -345,14 +334,12 @@ func HttpAuthFinishRegistrationProcess(_ *ServerConfig, regkeyStore *rckstrvcach
 	}
 }
 
-var ErrInvalidOtat = errors.New("invalid one time access token")
-
 func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache.Store, otatStore *rckstrvcache.Store, db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		otatToken := chi.URLParam(r, "otat")
 
 		if len(otatToken) == 0 {
-			respondWith400(w, r, ErrInvalidOtat.Error())
+			respondWith400(w, r, shared.ErrInvalidOtat.Error())
 			return
 		}
 
@@ -364,7 +351,7 @@ func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache
 
 		otatToken, err = url.PathUnescape(otatToken)
 		if err != nil {
-			respondWith400(w, r, ErrInvalidOtat.Error())
+			respondWith400(w, r, shared.ErrInvalidOtat.Error())
 			return
 		}
 
@@ -378,7 +365,7 @@ func HttpAuthGetBearerTokenFromOtat(cfg *ServerConfig, regkeyStore *rckstrvcache
 
 		if !exists {
 			err = littlehelpers.IfErrJoin(err, otatTx.Rollback())
-			respondWith400(w, r, ErrInvalidOtat.Error())
+			respondWith400(w, r, shared.ErrInvalidOtat.Error())
 			return
 		}
 
